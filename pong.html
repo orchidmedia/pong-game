@@ -29,6 +29,7 @@
       -webkit-tap-highlight-color: transparent;
     }
     button:hover, button.active { background: #fff; color: #000; }
+    button:disabled { opacity: 0.3; cursor: default; }
 
     .label { font-size: clamp(10px, 1.8vw, 13px); opacity: 0.5; text-transform: uppercase; letter-spacing: 2px; }
     .btn-group { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
@@ -40,15 +41,33 @@
     /* ── MENU ── */
     #menu h1 { font-size: clamp(28px, 12vw, 52px); letter-spacing: clamp(4px, 2vw, 8px); margin-bottom: 4px; }
 
-    /* ── GAME (fixed overlay — canvas scaled inside) ── */
+    /* Auth card */
+    #auth-card {
+      border: 1px solid rgba(255,255,255,0.18);
+      padding: 14px 22px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      width: min(340px, 90vw);
+    }
+    #auth-loading { font-size: 12px; opacity: 0.35; }
+    #auth-signin  { display: none; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
+    #auth-user    { display: none; align-items: center; gap: 10px; }
+    #auth-avatar  { width: 30px; height: 30px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.35); }
+    #auth-name    { font-size: 14px; }
+    #auth-provider { font-size: 11px; opacity: 0.4; }
+    .auth-provider-btns { display: flex; gap: 8px; }
+    .auth-provider-btns button { font-size: 13px; padding: 7px 16px; display: flex; align-items: center; gap: 6px; }
+    #auth-signout { font-size: 12px; padding: 4px 12px; opacity: 0.55; }
+
+    /* ── GAME (fixed overlay) ── */
     #game { display: none; position: fixed; inset: 0; }
     #game.visible { display: block; }
-
     #game-wrap {
       position: absolute;
       top: 50%;
       left: 50%;
-      /* transform set by JS: translate(-50%,-50%) scale(X) */
       transform-origin: center center;
       width: 800px;
     }
@@ -62,41 +81,36 @@
     #message { font-size: 20px; text-align: center; flex: 1; min-height: 26px; }
     .game-ctrl-btn {
       font-size: 13px;
-      padding: 6px 14px;
+      padding: 5px 12px;
       opacity: 0.65;
       border-color: rgba(255,255,255,0.4);
       flex-shrink: 0;
-      min-width: 72px;
-      text-align: center;
     }
     .game-ctrl-btn:hover { opacity: 1; }
-    #info { margin-top: 9px; font-size: 12px; opacity: 0.45; text-align: center; width: 800px; min-height: 16px; }
-
-    /* Touch zone labels drawn over canvas */
-    #touch-overlay {
-      position: absolute;
-      top: 0; left: 0;
-      width: 800px; height: 500px;
-      pointer-events: none;
-    }
+    #btn-sound { min-width: 38px; padding: 5px 8px; font-size: 17px; line-height: 1; }
+    #game-right-controls { display: flex; gap: 6px; align-items: center; }
+    #info { margin-top: 9px; font-size: 12px; opacity: 0.4; text-align: center; width: 800px; min-height: 16px; }
 
     /* ── LEADERBOARD ── */
     #leaderboard h2 { font-size: clamp(20px, 7vw, 32px); letter-spacing: 4px; margin-bottom: 4px; }
-    #lb-scroll { width: min(520px, 92vw); overflow-x: auto; }
-    #lb-table { width: 100%; border-collapse: collapse; min-width: 300px; }
+    #lb-scroll { width: min(580px, 92vw); overflow-x: auto; }
+    #lb-table { width: 100%; border-collapse: collapse; min-width: 320px; }
     #lb-table th, #lb-table td {
-      padding: clamp(5px, 1.5vw, 8px) clamp(8px, 2vw, 14px);
+      padding: clamp(5px, 1.5vw, 8px) clamp(7px, 2vw, 14px);
       text-align: left;
-      border-bottom: 1px solid rgba(255,255,255,0.15);
-      font-size: clamp(11px, 2vw, 14px);
+      border-bottom: 1px solid rgba(255,255,255,0.12);
+      font-size: clamp(11px, 2vw, 13px);
       white-space: nowrap;
     }
-    #lb-table th { opacity: 0.4; font-size: clamp(9px, 1.4vw, 11px); letter-spacing: 2px; text-transform: uppercase; }
-    #lb-table tr.highlight td { color: #ffd700; }
-    #lb-empty { opacity: 0.4; font-size: 14px; margin-top: 8px; }
+    #lb-table th { opacity: 0.38; font-size: clamp(9px, 1.4vw, 11px); letter-spacing: 2px; text-transform: uppercase; }
+    #lb-table tr.gold td   { color: #ffd700; }
+    #lb-table tr.silver td { color: #c0c0c0; }
+    #lb-table tr.bronze td { color: #cd7f32; }
+    #lb-source { font-size: 11px; opacity: 0.3; margin-top: 5px; }
+    #lb-empty  { opacity: 0.4; font-size: 14px; margin-top: 8px; }
     .lb-nav { display: flex; gap: 12px; margin-top: 8px; }
 
-    /* Portrait nudge */
+    /* Portrait hint */
     #portrait-hint {
       display: none;
       position: fixed;
@@ -112,137 +126,298 @@
 </head>
 <body>
 
-  <!-- MENU -->
+  <!-- ══ MENU ═════════════════════════════════════════════════════════ -->
   <div id="menu" class="screen visible">
     <h1>PONG</h1>
+
     <div class="label">Mode</div>
     <div class="btn-group">
       <button id="btn-vs-cpu"   class="active" onclick="selectMode('cpu')">vs Computer</button>
       <button id="btn-vs-human" onclick="selectMode('human')">2 Players</button>
     </div>
+
     <div class="label" id="diff-label">Difficulty</div>
     <div class="btn-group" id="diff-group">
       <button id="btn-easy"   onclick="selectDiff('easy')">Easy</button>
       <button id="btn-medium" class="active" onclick="selectDiff('medium')">Medium</button>
       <button id="btn-hard"   onclick="selectDiff('hard')">Hard</button>
     </div>
-    <button onclick="startGame()" style="margin-top:6px;font-size:clamp(14px,4vw,18px);padding:clamp(10px,2.5vw,12px) clamp(30px,8vw,48px);">START</button>
+
+    <button onclick="startGame()"
+      style="margin-top:6px;font-size:clamp(14px,4vw,18px);padding:clamp(10px,2.5vw,12px) clamp(30px,8vw,48px);">
+      START
+    </button>
+
+    <!-- Auth card -->
+    <div id="auth-card">
+      <div id="auth-loading" class="label">Connecting…</div>
+
+      <div id="auth-signin">
+        <div class="label">Sign in to save scores online</div>
+        <div class="auth-provider-btns">
+          <button onclick="signInGoogle()">
+            <svg width="15" height="15" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.2l6.7-6.7C35.7 2.5 30.2 0 24 0 14.7 0 6.7 5.4 2.9 13.3l7.8 6C12.5 13 17.8 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.4c-.5 2.8-2.2 5.2-4.6 6.8l7.2 5.6c4.2-3.9 6.1-9.6 7.1-16.4z"/><path fill="#FBBC05" d="M10.7 28.3A14.7 14.7 0 0 1 9.5 24c0-1.5.3-3 .7-4.3L2.9 13.3A23.9 23.9 0 0 0 0 24c0 3.9.9 7.5 2.9 10.7l7.8-6.4z"/><path fill="#34A853" d="M24 48c6.2 0 11.4-2 15.2-5.5l-7.2-5.6c-2 1.4-4.6 2.2-8 2.2-6.2 0-11.5-4.2-13.3-9.8l-7.8 6c3.8 7.6 11.8 12.7 21.1 12.7z"/></svg>
+            Google
+          </button>
+          <button onclick="signInGithub()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.2 11.38.6.11.82-.26.82-.58v-2.03c-3.34.73-4.04-1.61-4.04-1.61-.54-1.38-1.32-1.75-1.32-1.75-1.08-.74.08-.72.08-.72 1.2.08 1.83 1.23 1.83 1.23 1.06 1.82 2.79 1.3 3.47.99.11-.77.41-1.3.75-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4c1.02 0 2.04.13 3 .4 2.28-1.55 3.29-1.23 3.29-1.23.66 1.66.24 2.88.12 3.18.77.84 1.23 1.91 1.23 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.22.7.83.58C20.57 21.8 24 17.3 24 12c0-6.63-5.37-12-12-12z"/></svg>
+            GitHub
+          </button>
+        </div>
+      </div>
+
+      <div id="auth-user">
+        <img id="auth-avatar" src="" alt="" style="display:none;">
+        <div>
+          <div id="auth-name"></div>
+          <div id="auth-provider"></div>
+        </div>
+        <button id="auth-signout" onclick="doSignOut()">Sign out</button>
+      </div>
+    </div>
+
     <button onclick="showLeaderboard()" style="padding:8px 24px;opacity:0.65;">Leaderboard</button>
   </div>
 
-  <!-- GAME -->
+  <!-- ══ GAME ══════════════════════════════════════════════════════════ -->
   <div id="game">
     <div id="game-wrap">
       <div id="game-top">
         <button class="game-ctrl-btn" onclick="goToMenu()">&#8592; Menu</button>
         <div id="message"></div>
-        <button class="game-ctrl-btn" id="btn-pause" onclick="togglePause()">Pause</button>
+        <div id="game-right-controls">
+          <button class="game-ctrl-btn" id="btn-sound" onclick="toggleSound()" title="Toggle sound">🔊</button>
+          <button class="game-ctrl-btn" id="btn-pause" onclick="togglePause()">Pause</button>
+        </div>
       </div>
-      <div style="position:relative; line-height:0;">
-        <canvas id="c" width="800" height="500" style="border:2px solid #fff; display:block;"></canvas>
+      <div style="position:relative;line-height:0;">
+        <canvas id="c" width="800" height="500" style="border:2px solid #fff;display:block;"></canvas>
         <canvas id="overlay" width="800" height="500" style="position:absolute;top:0;left:0;pointer-events:none;"></canvas>
       </div>
       <div id="info"></div>
     </div>
   </div>
 
-  <!-- LEADERBOARD -->
+  <!-- ══ LEADERBOARD ═══════════════════════════════════════════════════ -->
   <div id="leaderboard" class="screen">
     <h2>LEADERBOARD</h2>
     <div id="lb-scroll">
       <table id="lb-table">
-        <thead><tr><th>#</th><th>Winner</th><th>Mode</th><th>Score</th><th>Date</th></tr></thead>
+        <thead><tr><th>#</th><th>Player</th><th>Mode</th><th>Score</th><th>Date</th></tr></thead>
         <tbody id="lb-body"></tbody>
       </table>
     </div>
     <div id="lb-empty" style="display:none">No games played yet.</div>
+    <div id="lb-source" class="lb-source"></div>
     <div class="lb-nav">
-      <button onclick="clearLeaderboard()" style="font-size:13px;padding:7px 18px;opacity:0.6;">Clear</button>
+      <button onclick="clearLocalScores()" style="font-size:13px;padding:7px 18px;opacity:0.6;">Clear local</button>
       <button onclick="showMenu()" style="font-size:14px;padding:8px 28px;">&#8592; Back</button>
     </div>
   </div>
 
   <div id="portrait-hint">Rotate to landscape for best experience</div>
 
+  <!-- ══ FIREBASE MODULE ═══════════════════════════════════════════════ -->
+  <script type="module">
+    // ─────────────────────────────────────────────────────────────────────
+    // FIREBASE SETUP — paste your config below.
+    //
+    // Steps:
+    //  1. Go to https://console.firebase.google.com → create a project
+    //  2. Add a Web app → copy the config object here
+    //  3. Authentication → Sign-in method → enable Google and GitHub
+    //     (GitHub requires a GitHub OAuth App; Firebase shows the callback URL)
+    //  4. Firestore Database → Create database (test mode is fine to start)
+    // ─────────────────────────────────────────────────────────────────────
+    const FIREBASE_CONFIG = {
+      apiKey:            "YOUR_API_KEY",
+      authDomain:        "YOUR_PROJECT_ID.firebaseapp.com",
+      projectId:         "YOUR_PROJECT_ID",
+      storageBucket:     "YOUR_PROJECT_ID.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId:             "YOUR_APP_ID",
+    };
+
+    const CONFIGURED = FIREBASE_CONFIG.apiKey !== 'YOUR_API_KEY';
+    const authLoading = document.getElementById('auth-loading');
+    const authSignin  = document.getElementById('auth-signin');
+    const authUser    = document.getElementById('auth-user');
+
+    if (!CONFIGURED) {
+      authLoading.textContent = 'Local scores only — Firebase not configured';
+      window.fbReady = false;
+      return;
+    }
+
+    const V   = '10.12.0';
+    const cdn = p => `https://www.gstatic.com/firebasejs/${V}/${p}`;
+
+    const { initializeApp } = await import(cdn('firebase-app.js'));
+    const { getAuth, signInWithPopup, GoogleAuthProvider, GithubAuthProvider, onAuthStateChanged, signOut }
+      = await import(cdn('firebase-auth.js'));
+    const { getFirestore, collection, addDoc, getDocs, query, orderBy, limit, serverTimestamp }
+      = await import(cdn('firebase-firestore.js'));
+
+    const app  = initializeApp(FIREBASE_CONFIG);
+    const auth = getAuth(app);
+    const db   = getFirestore(app);
+
+    // ── Auth state ────────────────────────────────────────────────────────
+    onAuthStateChanged(auth, user => {
+      authLoading.style.display = 'none';
+      window.fbCurrentUser = user;
+
+      if (user) {
+        authSignin.style.display = 'none';
+        authUser.style.display   = 'flex';
+        document.getElementById('auth-name').textContent = user.displayName || user.email;
+        const avatar = document.getElementById('auth-avatar');
+        if (user.photoURL) { avatar.src = user.photoURL; avatar.style.display = 'block'; }
+        const pid = user.providerData[0]?.providerId || '';
+        document.getElementById('auth-provider').textContent =
+          pid.includes('google') ? 'via Google' : pid.includes('github') ? 'via GitHub' : '';
+      } else {
+        authSignin.style.display = 'flex';
+        authSignin.style.flexDirection = 'column';
+        authSignin.style.alignItems = 'center';
+        authUser.style.display = 'none';
+      }
+    });
+
+    // ── Exposed globals ───────────────────────────────────────────────────
+    window.fbSignInGoogle = () => signInWithPopup(auth, new GoogleAuthProvider()).catch(console.error);
+    window.fbSignInGithub = () => signInWithPopup(auth, new GithubAuthProvider()).catch(console.error);
+    window.fbSignOut      = () => signOut(auth);
+
+    window.fbSaveEntry = entry =>
+      addDoc(collection(db, 'leaderboard'), {
+        ...entry,
+        uid:         window.fbCurrentUser?.uid || null,
+        displayName: window.fbCurrentUser?.displayName || entry.winner,
+        photoURL:    window.fbCurrentUser?.photoURL || null,
+        timestamp:   serverTimestamp(),
+      });
+
+    window.fbGetEntries = async () => {
+      const snap = await getDocs(
+        query(collection(db, 'leaderboard'), orderBy('timestamp', 'desc'), limit(20))
+      );
+      return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    };
+
+    window.fbReady = true;
+  </script>
+
+  <!-- ══ GAME SCRIPT ═══════════════════════════════════════════════════ -->
   <script>
-    // ── Constants ───────────────────────────────────────────────────
-    const canvas  = document.getElementById('c');
-    const ctx     = canvas.getContext('2d');
-    const overlay = document.getElementById('overlay');
-    const octx    = overlay.getContext('2d');
-    const msg     = document.getElementById('message');
-    const info    = document.getElementById('info');
+    // ── Canvas ────────────────────────────────────────────────────────────
+    const canvas   = document.getElementById('c');
+    const ctx      = canvas.getContext('2d');
+    const overlay  = document.getElementById('overlay');
+    const octx     = overlay.getContext('2d');
+    const msg      = document.getElementById('message');
+    const info     = document.getElementById('info');
     const btnPause = document.getElementById('btn-pause');
+    const btnSound = document.getElementById('btn-sound');
 
     const W = 800, H = 500;
     const PAD_W = 12, PAD_H = 80, BALL_R = 5, SPEED_INC = 0.3;
+    const AI_SPEED = { easy: 2.5, medium: 4,  hard: 6.5 };
+    const AI_ERROR = { easy: 40,  medium: 18, hard: 4   };
 
-    const AI_SPEED = { easy: 2.5, medium: 4,   hard: 6.5 };
-    const AI_ERROR = { easy: 40,  medium: 18,  hard: 4   };
+    // ── 8-bit Sound ───────────────────────────────────────────────────────
+    let soundEnabled = true;
+    let audioCtx;
 
-    // ── State ────────────────────────────────────────────────────────
-    let mode = 'cpu', difficulty = 'medium';
-    let running = false, animId;
-    let lastWinner = null;
-    let isTouch = false;
+    function getAC() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      return audioCtx;
+    }
 
-    const state = {
-      left:  { y: H/2 - PAD_H/2, score: 0 },
-      right: { y: H/2 - PAD_H/2, score: 0 },
-      ball:  { x: W/2, y: H/2, vx: 4, vy: 3 },
-      aiTarget: H/2,
+    ['touchstart','mousedown','keydown'].forEach(ev =>
+      document.addEventListener(ev, () => audioCtx?.resume(), { passive: true })
+    );
+
+    function beep({ freq = 440, dur = 0.08, vol = 0.3, type = 'square', slide = null }) {
+      if (!soundEnabled) return;
+      try {
+        const ac   = getAC();
+        const osc  = ac.createOscillator();
+        const gain = ac.createGain();
+        osc.connect(gain);
+        gain.connect(ac.destination);
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, ac.currentTime);
+        if (slide !== null) osc.frequency.linearRampToValueAtTime(slide, ac.currentTime + dur);
+        gain.gain.setValueAtTime(vol, ac.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + dur);
+        osc.start(ac.currentTime);
+        osc.stop(ac.currentTime + dur + 0.01);
+      } catch (_) {}
+    }
+
+    const after = (ms, fn) => setTimeout(fn, ms);
+
+    const sfx = {
+      paddleHit() { beep({ freq: 240, dur: 0.05, vol: 0.45 }); },
+      wallHit()   { beep({ freq: 480, dur: 0.03, vol: 0.3  }); },
+      score() {
+        beep({ freq: 392, dur: 0.08, vol: 0.4 });
+        after(90,  () => beep({ freq: 330, dur: 0.08, vol: 0.4 }));
+        after(180, () => beep({ freq: 262, dur: 0.16, vol: 0.5 }));
+      },
+      win() {
+        [523, 659, 784, 1047].forEach((f, i) =>
+          after(i * 130, () => beep({ freq: f, dur: 0.2, vol: 0.45 }))
+        );
+      },
+      click()  { beep({ freq: 660, dur: 0.04, vol: 0.2 }); },
+      pause()  { beep({ freq: 330, dur: 0.08, vol: 0.25, slide: 220 }); },
+      resume() { beep({ freq: 220, dur: 0.08, vol: 0.25, slide: 330 }); },
     };
 
-    // Touch Y positions (canvas coords), null = no touch on that side
+    function toggleSound() {
+      soundEnabled = !soundEnabled;
+      btnSound.textContent = soundEnabled ? '🔊' : '🔇';
+      if (soundEnabled) sfx.click();
+    }
+
+    // ── State ─────────────────────────────────────────────────────────────
+    let mode = 'cpu', difficulty = 'medium';
+    let running = false, animId, lastWinner = null, isTouch = false;
+
+    const state = {
+      left:     { y: H/2 - PAD_H/2, score: 0 },
+      right:    { y: H/2 - PAD_H/2, score: 0 },
+      ball:     { x: W/2, y: H/2, vx: 4, vy: 3 },
+      aiTarget: H/2,
+    };
     const tp = { left: null, right: null };
 
-    // ── Screen management ────────────────────────────────────────────
+    // ── Screens ───────────────────────────────────────────────────────────
     function showScreen(id) {
       document.querySelectorAll('.screen').forEach(s => s.classList.remove('visible'));
-      const el = document.getElementById(id);
-      if (el) el.classList.add('visible');
-      // game screen uses its own display logic
       document.getElementById('game').classList.remove('visible');
       if (id === 'game') document.getElementById('game').classList.add('visible');
+      else               document.getElementById(id).classList.add('visible');
     }
+    function showMenu() { sfx.click(); showScreen('menu'); }
+    async function showLeaderboard() { sfx.click(); showScreen('leaderboard'); await renderLeaderboard(); }
 
-    function showMenu()        { showScreen('menu'); }
-    function showLeaderboard() { renderLeaderboard(); showScreen('leaderboard'); }
-
-    // ── Responsive scaling ────────────────────────────────────────────
-    const WRAP_W = 800, WRAP_H = 560; // canvas + chrome height
-
+    // ── Responsive scaling ────────────────────────────────────────────────
     function resizeGame() {
-      const scale = Math.min(
-        window.innerWidth  / (WRAP_W + 16),
-        window.innerHeight / (WRAP_H + 16),
-        1
-      );
-      const wrap = document.getElementById('game-wrap');
-      wrap.style.transform = `translate(-50%, -50%) scale(${scale})`;
-
-      // Portrait hint on small touch devices
-      const ph = document.getElementById('portrait-hint');
-      ph.style.display =
-        (isTouch && window.innerWidth < window.innerHeight && window.innerWidth < 600)
-          ? 'block' : 'none';
+      const scale = Math.min(window.innerWidth / 816, window.innerHeight / 576, 1);
+      document.getElementById('game-wrap').style.transform = `translate(-50%, -50%) scale(${scale})`;
+      document.getElementById('portrait-hint').style.display =
+        (isTouch && window.innerWidth < window.innerHeight && window.innerWidth < 600) ? 'block' : 'none';
     }
-
     window.addEventListener('resize', resizeGame);
     window.addEventListener('orientationchange', () => setTimeout(resizeGame, 150));
 
-    // ── Touch detection & events ──────────────────────────────────────
+    // ── Touch ─────────────────────────────────────────────────────────────
     function detectTouch() {
-      isTouch = window.matchMedia('(hover: none) and (pointer: coarse)').matches
-             || ('ontouchstart' in window);
-    }
-
-    function canvasTouchPos(touch) {
-      const rect = canvas.getBoundingClientRect();
-      return {
-        x: (touch.clientX - rect.left) / rect.width  * W,
-        y: (touch.clientY - rect.top)  / rect.height * H,
-      };
+      isTouch = window.matchMedia('(hover: none) and (pointer: coarse)').matches || ('ontouchstart' in window);
     }
 
     canvas.addEventListener('touchstart', onCanvasTouch, { passive: false });
@@ -253,49 +428,45 @@
     function onCanvasTouch(e) {
       e.preventDefault();
       isTouch = true;
-
-      tp.left = null;
-      tp.right = null;
-
+      tp.left = tp.right = null;
+      const rect = canvas.getBoundingClientRect();
       for (const t of e.touches) {
-        const pos = canvasTouchPos(t);
-        if (pos.x < W / 2) tp.left  = pos.y;
-        else                tp.right = pos.y;
+        const cx = (t.clientX - rect.left) / rect.width  * W;
+        const cy = (t.clientY - rect.top)  / rect.height * H;
+        if (cx < W / 2) tp.left  = cy;
+        else            tp.right = cy;
       }
-
-      if (e.type === 'touchstart') {
-        if (!running && document.getElementById('game').classList.contains('visible')) {
-          if (lastWinner !== null) {
-            playAgain();
-          } else {
-            beginRunning();
-          }
-        }
+      if (e.type === 'touchstart' && !running && document.getElementById('game').classList.contains('visible')) {
+        lastWinner !== null ? playAgain() : beginRunning();
       }
-
       updateOverlay();
     }
 
-    // ── Menu logic ────────────────────────────────────────────────────
+    // ── Menu ──────────────────────────────────────────────────────────────
     function selectMode(m) {
-      mode = m;
-      document.getElementById('btn-vs-cpu').classList.toggle('active', m === 'cpu');
+      sfx.click(); mode = m;
+      document.getElementById('btn-vs-cpu').classList.toggle('active',   m === 'cpu');
       document.getElementById('btn-vs-human').classList.toggle('active', m === 'human');
       const cpu = m === 'cpu';
       document.getElementById('diff-label').style.opacity       = cpu ? '0.5'  : '0.15';
       document.getElementById('diff-group').style.opacity       = cpu ? '1'    : '0.25';
       document.getElementById('diff-group').style.pointerEvents = cpu ? 'auto' : 'none';
     }
-
     function selectDiff(d) {
-      difficulty = d;
+      sfx.click(); difficulty = d;
       ['easy','medium','hard'].forEach(x =>
         document.getElementById('btn-' + x).classList.toggle('active', x === d)
       );
     }
 
-    // ── Game flow ─────────────────────────────────────────────────────
+    // ── Auth bridge ───────────────────────────────────────────────────────
+    function signInGoogle() { window.fbSignInGoogle?.(); }
+    function signInGithub() { window.fbSignInGithub?.(); }
+    function doSignOut()    { window.fbSignOut?.(); }
+
+    // ── Game flow ─────────────────────────────────────────────────────────
     function startGame() {
+      sfx.click();
       showScreen('game');
       resizeGame();
       state.left.score = state.right.score = 0;
@@ -308,45 +479,33 @@
       draw();
     }
 
-    function goToMenu() {
-      running = false;
-      cancelAnimationFrame(animId);
-      showMenu();
-    }
+    function goToMenu() { running = false; cancelAnimationFrame(animId); showMenu(); }
 
     function beginRunning() {
       if (running) return;
-      running = true;
-      msg.textContent = '';
-      btnPause.textContent = 'Pause';
-      loop();
+      running = true; msg.textContent = ''; btnPause.textContent = 'Pause';
+      sfx.resume(); loop();
     }
 
     function togglePause() {
       if (lastWinner !== null) return;
       running = !running;
       if (running) {
-        msg.textContent = '';
-        btnPause.textContent = 'Pause';
-        loop();
+        msg.textContent = ''; btnPause.textContent = 'Pause'; sfx.resume(); loop();
       } else {
         cancelAnimationFrame(animId);
         msg.textContent = isTouch ? 'Tap to Resume' : 'Paused — Space to Resume';
-        btnPause.textContent = 'Resume';
+        btnPause.textContent = 'Resume'; sfx.pause();
       }
     }
 
     function playAgain() {
-      state.left.score = state.right.score = 0;
-      lastWinner = null;
-      reset(1);
-      msg.textContent = '';
-      btnPause.textContent = 'Pause';
-      running = true;
-      loop();
+      state.left.score = state.right.score = 0; lastWinner = null;
+      reset(1); msg.textContent = ''; btnPause.textContent = 'Pause';
+      running = true; sfx.resume(); loop();
     }
 
-    // ── Keyboard ──────────────────────────────────────────────────────
+    // ── Keyboard ──────────────────────────────────────────────────────────
     const keys = {};
     document.addEventListener('keydown', e => {
       keys[e.key] = true;
@@ -354,30 +513,28 @@
       if (!document.getElementById('game').classList.contains('visible')) return;
       if (e.key === ' ') {
         e.preventDefault();
-        if (lastWinner !== null) { playAgain(); }
-        else if (!running)       { beginRunning(); }
-        else                     { togglePause(); }
+        if (lastWinner !== null) playAgain();
+        else if (!running)       beginRunning();
+        else                     togglePause();
       }
     });
     document.addEventListener('keyup', e => { keys[e.key] = false; });
 
-    // ── Game helpers ──────────────────────────────────────────────────
-    function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+    // ── Game helpers ──────────────────────────────────────────────────────
+    const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
     function reset(dir = 1) {
-      state.ball.x   = W / 2;
-      state.ball.y   = H / 2;
-      state.ball.vx  = 4 * dir;
-      state.ball.vy  = (Math.random() * 4 + 2) * (Math.random() < 0.5 ? 1 : -1);
-      state.aiTarget = H / 2;
+      state.ball.x = W/2; state.ball.y = H/2;
+      state.ball.vx = 4 * dir;
+      state.ball.vy = (Math.random() * 4 + 2) * (Math.random() < 0.5 ? 1 : -1);
+      state.aiTarget = H/2;
     }
 
     function updateAI() {
       const b = state.ball, spd = AI_SPEED[difficulty], err = AI_ERROR[difficulty];
       if (b.vx > 0) {
         const t = (W - 20 - PAD_W - b.x) / b.vx;
-        let py = b.y + b.vy * t;
-        py = py % (H * 2);
+        let py = (b.y + b.vy * t) % (H * 2);
         if (py < 0) py += H * 2;
         if (py > H) py = H * 2 - py;
         state.aiTarget = py + (Math.random() * 2 - 1) * err;
@@ -390,179 +547,162 @@
 
     function update() {
       const SPD = 6;
-
-      // Left paddle — touch takes priority over keyboard
       if (tp.left !== null) {
-        state.left.y = clamp(tp.left - PAD_H / 2, 0, H - PAD_H);
+        state.left.y = clamp(tp.left - PAD_H/2, 0, H - PAD_H);
       } else {
         if (keys['w'] || keys['W']) state.left.y = clamp(state.left.y - SPD, 0, H - PAD_H);
         if (keys['s'] || keys['S']) state.left.y = clamp(state.left.y + SPD, 0, H - PAD_H);
       }
 
-      // Right paddle
       if (mode === 'human') {
         if (tp.right !== null) {
-          state.right.y = clamp(tp.right - PAD_H / 2, 0, H - PAD_H);
+          state.right.y = clamp(tp.right - PAD_H/2, 0, H - PAD_H);
         } else {
           if (keys['ArrowUp'])   state.right.y = clamp(state.right.y - SPD, 0, H - PAD_H);
           if (keys['ArrowDown']) state.right.y = clamp(state.right.y + SPD, 0, H - PAD_H);
         }
-      } else {
-        updateAI();
-      }
+      } else { updateAI(); }
 
       const b = state.ball;
       b.x += b.vx; b.y += b.vy;
 
-      if (b.y <= BALL_R)     { b.y = BALL_R;     b.vy *= -1; }
-      if (b.y >= H - BALL_R) { b.y = H - BALL_R; b.vy *= -1; }
+      if (b.y <= BALL_R)     { b.y = BALL_R;     b.vy *= -1; sfx.wallHit(); }
+      if (b.y >= H - BALL_R) { b.y = H - BALL_R; b.vy *= -1; sfx.wallHit(); }
 
-      // Left paddle collision
       const lp = state.left;
       if (b.x - BALL_R <= PAD_W + 20 && b.x - BALL_R >= 20 &&
           b.y >= lp.y && b.y <= lp.y + PAD_H) {
-        b.x   = PAD_W + 20 + BALL_R;
-        b.vx  = Math.abs(b.vx) + SPEED_INC;
-        b.vy += ((b.y - (lp.y + PAD_H / 2)) / (PAD_H / 2)) * 2;
+        b.x = PAD_W + 20 + BALL_R;
+        b.vx = Math.abs(b.vx) + SPEED_INC;
+        b.vy += ((b.y - (lp.y + PAD_H/2)) / (PAD_H/2)) * 2;
+        sfx.paddleHit();
       }
 
-      // Right paddle collision
       const rp = state.right;
       if (b.x + BALL_R >= W - PAD_W - 20 && b.x + BALL_R <= W - 20 &&
           b.y >= rp.y && b.y <= rp.y + PAD_H) {
-        b.x   = W - PAD_W - 20 - BALL_R;
-        b.vx  = -(Math.abs(b.vx) + SPEED_INC);
-        b.vy += ((b.y - (rp.y + PAD_H / 2)) / (PAD_H / 2)) * 2;
+        b.x = W - PAD_W - 20 - BALL_R;
+        b.vx = -(Math.abs(b.vx) + SPEED_INC);
+        b.vy += ((b.y - (rp.y + PAD_H/2)) / (PAD_H/2)) * 2;
+        sfx.paddleHit();
       }
 
       b.vy = clamp(b.vy, -10, 10);
 
-      if (b.x < 0) { state.right.score++; checkWin(mode === 'cpu' ? 'Computer' : 'P2'); reset(1);  }
-      if (b.x > W) { state.left.score++;  checkWin('P1'); reset(-1); }
+      if (b.x < 0) { state.right.score++; sfx.score(); checkWin(mode === 'cpu' ? 'Computer' : 'P2'); reset(1);  }
+      if (b.x > W) { state.left.score++;  sfx.score(); checkWin('P1'); reset(-1); }
     }
 
     function checkWin(winner) {
-      if (state.left.score >= 7 || state.right.score >= 7) {
-        running = false;
-        lastWinner = winner;
-        msg.textContent = isTouch
-          ? `${winner} wins! Tap to play again`
-          : `${winner} wins! — Space to play again`;
-        saveResult(winner);
-      }
+      if (state.left.score < 7 && state.right.score < 7) return;
+      running = false; lastWinner = winner; sfx.win();
+      const name = window.fbCurrentUser?.displayName || winner;
+      msg.textContent = isTouch ? `${name} wins! — Tap to play again` : `${name} wins! — Space to play again`;
+      saveResult(winner, name);
     }
 
-    // ── Draw ──────────────────────────────────────────────────────────
+    // ── Draw ──────────────────────────────────────────────────────────────
     function draw() {
       ctx.clearRect(0, 0, W, H);
-
-      // Centre dashes
       ctx.setLineDash([10, 10]);
-      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+      ctx.strokeStyle = 'rgba(255,255,255,0.25)';
       ctx.lineWidth = 2;
       ctx.beginPath(); ctx.moveTo(W/2, 0); ctx.lineTo(W/2, H); ctx.stroke();
       ctx.setLineDash([]);
 
-      // Paddles
       ctx.fillStyle = '#fff';
-      ctx.fillRect(20, state.left.y,  PAD_W, PAD_H);
+      ctx.fillRect(20, state.left.y, PAD_W, PAD_H);
       ctx.fillRect(W - 20 - PAD_W, state.right.y, PAD_W, PAD_H);
-
-      // Ball
       ctx.beginPath();
       ctx.arc(state.ball.x, state.ball.y, BALL_R, 0, Math.PI * 2);
       ctx.fill();
 
-      // Scores
       ctx.font = 'bold 48px monospace';
       ctx.textAlign = 'center';
       ctx.fillStyle = 'rgba(255,255,255,0.8)';
       ctx.fillText(state.left.score,  W/4,   60);
       ctx.fillText(state.right.score, W*3/4, 60);
 
-      // Side labels
       ctx.font = '12px monospace';
-      ctx.fillStyle = 'rgba(255,255,255,0.3)';
+      ctx.fillStyle = 'rgba(255,255,255,0.28)';
       ctx.fillText('P1',                       W/4,   80);
       ctx.fillText(mode === 'cpu' ? 'CPU':'P2', W*3/4, 80);
     }
 
-    // Overlay: touch zone indicators (shown while a touch is active)
     function updateOverlay() {
       octx.clearRect(0, 0, W, H);
       if (!isTouch) return;
-
-      function drawZone(x, w, active) {
-        if (!active) return;
-        octx.fillStyle = 'rgba(255,255,255,0.06)';
-        octx.fillRect(x, 0, w, H);
-      }
-      drawZone(0,   W/2, tp.left  !== null);
-      drawZone(W/2, W/2, tp.right !== null);
-
-      // Static hint text when nothing is touching (only if game hasn't started)
-      if (tp.left === null && tp.right === null && !running) {
+      if (tp.left  !== null) { octx.fillStyle = 'rgba(255,255,255,0.05)'; octx.fillRect(0,   0, W/2, H); }
+      if (tp.right !== null) { octx.fillStyle = 'rgba(255,255,255,0.05)'; octx.fillRect(W/2, 0, W/2, H); }
+      if (!running && !tp.left && !tp.right) {
         octx.font = '13px monospace';
-        octx.fillStyle = 'rgba(255,255,255,0.2)';
+        octx.fillStyle = 'rgba(255,255,255,0.18)';
         octx.textAlign = 'center';
-        octx.fillText('touch', W/4,   H/2);
+        octx.fillText('touch', W/4, H/2);
         if (mode === 'human') octx.fillText('touch', W*3/4, H/2);
       }
     }
 
     function updateInfo() {
-      if (isTouch) {
-        info.textContent = mode === 'human'
-          ? 'Drag left side — P1  |  Drag right side — P2'
-          : 'Drag left side to move your paddle';
-      } else {
-        info.textContent = mode === 'human'
-          ? 'W/S — P1  |  ↑/↓ — P2  |  Space — Pause  |  Esc — Menu'
-          : 'W/S — Your paddle  |  Space — Pause  |  Esc — Menu';
+      info.textContent = isTouch
+        ? (mode === 'human' ? 'Drag left — P1  |  Drag right — P2' : 'Drag left side to move your paddle')
+        : (mode === 'human' ? 'W/S — P1  |  ↑/↓ — P2  |  Space — Pause  |  Esc — Menu'
+                            : 'W/S — paddle  |  Space — Pause  |  Esc — Menu');
+    }
+
+    function loop() { update(); draw(); if (running) animId = requestAnimationFrame(loop); }
+
+    // ── Leaderboard ───────────────────────────────────────────────────────
+    const LB_KEY = 'pong_leaderboard';
+    const loadLB = () => { try { return JSON.parse(localStorage.getItem(LB_KEY)) || []; } catch { return []; } };
+    const saveLB = d  => localStorage.setItem(LB_KEY, JSON.stringify(d));
+
+    async function saveResult(winner, displayName) {
+      const entry = {
+        winner: displayName || winner,
+        mode:   mode === 'cpu' ? `vs CPU (${difficulty})` : '2 Players',
+        score:  `${state.left.score}–${state.right.score}`,
+        date:   new Date().toLocaleDateString(),
+      };
+      const lb = loadLB(); lb.unshift(entry); saveLB(lb.slice(0, 20));
+      if (window.fbReady && window.fbSaveEntry) {
+        try { await window.fbSaveEntry(entry); } catch (e) { console.warn('Firestore:', e); }
       }
     }
 
-    function loop() {
-      update(); draw();
-      if (running) animId = requestAnimationFrame(loop);
-    }
-
-    // ── Leaderboard ───────────────────────────────────────────────────
-    const LB_KEY = 'pong_leaderboard';
-    function loadLB()     { try { return JSON.parse(localStorage.getItem(LB_KEY)) || []; } catch { return []; } }
-    function saveLB(data) { localStorage.setItem(LB_KEY, JSON.stringify(data)); }
-
-    function saveResult(winner) {
-      const lb = loadLB();
-      lb.unshift({
-        winner,
-        mode:  mode === 'cpu' ? `vs CPU (${difficulty})` : '2 Players',
-        score: `${state.left.score}–${state.right.score}`,
-        date:  new Date().toLocaleDateString(),
-      });
-      saveLB(lb.slice(0, 20));
-    }
-
-    function renderLeaderboard() {
-      const lb    = loadLB();
+    async function renderLeaderboard() {
       const body  = document.getElementById('lb-body');
       const empty = document.getElementById('lb-empty');
+      const src   = document.getElementById('lb-source');
+      body.innerHTML = `<tr><td colspan="5" style="opacity:0.3;text-align:center;padding:16px">Loading…</td></tr>`;
+
+      let lb, online = false;
+      if (window.fbReady && window.fbGetEntries) {
+        try { lb = await window.fbGetEntries(); online = true; }
+        catch { lb = loadLB(); }
+      } else { lb = loadLB(); }
+
+      src.textContent = online ? '🌐 Online leaderboard' : '💾 Local scores only';
       body.innerHTML = '';
-      if (!lb.length) { empty.style.display = 'block'; return; }
-      empty.style.display = 'none';
+      empty.style.display = lb.length ? 'none' : 'block';
+
       lb.forEach((e, i) => {
         const tr = document.createElement('tr');
-        if (i === 0) tr.classList.add('highlight');
-        tr.innerHTML = `<td>${i+1}</td><td>${e.winner}</td><td>${e.mode}</td><td>${e.score}</td><td>${e.date}</td>`;
+        if (i === 0) tr.classList.add('gold');
+        if (i === 1) tr.classList.add('silver');
+        if (i === 2) tr.classList.add('bronze');
+        const name = e.winner || e.displayName || '—';
+        tr.innerHTML = `<td>${i+1}</td><td>${name}</td><td>${e.mode}</td><td>${e.score}</td><td>${e.date}</td>`;
         body.appendChild(tr);
       });
     }
 
-    function clearLeaderboard() {
-      if (confirm('Clear the leaderboard?')) { saveLB([]); renderLeaderboard(); }
+    function clearLocalScores() {
+      if (!confirm('Clear local scores?')) return;
+      saveLB([]); renderLeaderboard();
     }
 
-    // ── Init ──────────────────────────────────────────────────────────
+    // ── Init ──────────────────────────────────────────────────────────────
     detectTouch();
     selectMode('cpu');
     selectDiff('medium');
