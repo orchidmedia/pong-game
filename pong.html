@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Pong</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      background: #000;
+      font-family: monospace;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      touch-action: none;
+    }
+
+    button {
+      background: transparent;
+      border: 2px solid #fff;
+      color: #fff;
+      font-family: monospace;
+      font-size: clamp(13px, 2.5vw, 16px);
+      padding: clamp(8px, 2vw, 10px) clamp(14px, 3.5vw, 28px);
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    button:hover, button.active { background: #fff; color: #000; }
+
+    .label { font-size: clamp(10px, 1.8vw, 13px); opacity: 0.5; text-transform: uppercase; letter-spacing: 2px; }
+    .btn-group { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+
+    /* ── SCREENS ── */
+    .screen { display: none; flex-direction: column; align-items: center; gap: clamp(10px, 2.5vw, 16px); padding: 16px; width: 100%; }
+    .screen.visible { display: flex; }
+
+    /* ── MENU ── */
+    #menu h1 { font-size: clamp(28px, 12vw, 52px); letter-spacing: clamp(4px, 2vw, 8px); margin-bottom: 4px; }
+
+    /* ── GAME (fixed overlay — canvas scaled inside) ── */
+    #game { display: none; position: fixed; inset: 0; }
+    #game.visible { display: block; }
+
+    #game-wrap {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      /* transform set by JS: translate(-50%,-50%) scale(X) */
+      transform-origin: center center;
+      width: 800px;
+    }
+    #game-top {
+      display: flex;
+      width: 800px;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    #message { font-size: 20px; text-align: center; flex: 1; min-height: 26px; }
+    .game-ctrl-btn {
+      font-size: 13px;
+      padding: 6px 14px;
+      opacity: 0.65;
+      border-color: rgba(255,255,255,0.4);
+      flex-shrink: 0;
+      min-width: 72px;
+      text-align: center;
+    }
+    .game-ctrl-btn:hover { opacity: 1; }
+    #info { margin-top: 9px; font-size: 12px; opacity: 0.45; text-align: center; width: 800px; min-height: 16px; }
+
+    /* Touch zone labels drawn over canvas */
+    #touch-overlay {
+      position: absolute;
+      top: 0; left: 0;
+      width: 800px; height: 500px;
+      pointer-events: none;
+    }
+
+    /* ── LEADERBOARD ── */
+    #leaderboard h2 { font-size: clamp(20px, 7vw, 32px); letter-spacing: 4px; margin-bottom: 4px; }
+    #lb-scroll { width: min(520px, 92vw); overflow-x: auto; }
+    #lb-table { width: 100%; border-collapse: collapse; min-width: 300px; }
+    #lb-table th, #lb-table td {
+      padding: clamp(5px, 1.5vw, 8px) clamp(8px, 2vw, 14px);
+      text-align: left;
+      border-bottom: 1px solid rgba(255,255,255,0.15);
+      font-size: clamp(11px, 2vw, 14px);
+      white-space: nowrap;
+    }
+    #lb-table th { opacity: 0.4; font-size: clamp(9px, 1.4vw, 11px); letter-spacing: 2px; text-transform: uppercase; }
+    #lb-table tr.highlight td { color: #ffd700; }
+    #lb-empty { opacity: 0.4; font-size: 14px; margin-top: 8px; }
+    .lb-nav { display: flex; gap: 12px; margin-top: 8px; }
+
+    /* Portrait nudge */
+    #portrait-hint {
+      display: none;
+      position: fixed;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 11px;
+      opacity: 0.35;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- MENU -->
+  <div id="menu" class="screen visible">
+    <h1>PONG</h1>
+    <div class="label">Mode</div>
+    <div class="btn-group">
+      <button id="btn-vs-cpu"   class="active" onclick="selectMode('cpu')">vs Computer</button>
+      <button id="btn-vs-human" onclick="selectMode('human')">2 Players</button>
+    </div>
+    <div class="label" id="diff-label">Difficulty</div>
+    <div class="btn-group" id="diff-group">
+      <button id="btn-easy"   onclick="selectDiff('easy')">Easy</button>
+      <button id="btn-medium" class="active" onclick="selectDiff('medium')">Medium</button>
+      <button id="btn-hard"   onclick="selectDiff('hard')">Hard</button>
+    </div>
+    <button onclick="startGame()" style="margin-top:6px;font-size:clamp(14px,4vw,18px);padding:clamp(10px,2.5vw,12px) clamp(30px,8vw,48px);">START</button>
+    <button onclick="showLeaderboard()" style="padding:8px 24px;opacity:0.65;">Leaderboard</button>
+  </div>
+
+  <!-- GAME -->
+  <div id="game">
+    <div id="game-wrap">
+      <div id="game-top">
+        <button class="game-ctrl-btn" onclick="goToMenu()">&#8592; Menu</button>
+        <div id="message"></div>
+        <button class="game-ctrl-btn" id="btn-pause" onclick="togglePause()">Pause</button>
+      </div>
+      <div style="position:relative; line-height:0;">
+        <canvas id="c" width="800" height="500" style="border:2px solid #fff; display:block;"></canvas>
+        <canvas id="overlay" width="800" height="500" style="position:absolute;top:0;left:0;pointer-events:none;"></canvas>
+      </div>
+      <div id="info"></div>
+    </div>
+  </div>
+
+  <!-- LEADERBOARD -->
+  <div id="leaderboard" class="screen">
+    <h2>LEADERBOARD</h2>
+    <div id="lb-scroll">
+      <table id="lb-table">
+        <thead><tr><th>#</th><th>Winner</th><th>Mode</th><th>Score</th><th>Date</th></tr></thead>
+        <tbody id="lb-body"></tbody>
+      </table>
+    </div>
+    <div id="lb-empty" style="display:none">No games played yet.</div>
+    <div class="lb-nav">
+      <button onclick="clearLeaderboard()" style="font-size:13px;padding:7px 18px;opacity:0.6;">Clear</button>
+      <button onclick="showMenu()" style="font-size:14px;padding:8px 28px;">&#8592; Back</button>
+    </div>
+  </div>
+
+  <div id="portrait-hint">Rotate to landscape for best experience</div>
+
+  <script>
+    // ── Constants ───────────────────────────────────────────────────
+    const canvas  = document.getElementById('c');
+    const ctx     = canvas.getContext('2d');
+    const overlay = document.getElementById('overlay');
+    const octx    = overlay.getContext('2d');
+    const msg     = document.getElementById('message');
+    const info    = document.getElementById('info');
+    const btnPause = document.getElementById('btn-pause');
+
+    const W = 800, H = 500;
+    const PAD_W = 12, PAD_H = 80, BALL_R = 5, SPEED_INC = 0.3;
+
+    const AI_SPEED = { easy: 2.5, medium: 4,   hard: 6.5 };
+    const AI_ERROR = { easy: 40,  medium: 18,  hard: 4   };
+
+    // ── State ────────────────────────────────────────────────────────
+    let mode = 'cpu', difficulty = 'medium';
+    let running = false, animId;
+    let lastWinner = null;
+    let isTouch = false;
+
+    const state = {
+      left:  { y: H/2 - PAD_H/2, score: 0 },
+      right: { y: H/2 - PAD_H/2, score: 0 },
+      ball:  { x: W/2, y: H/2, vx: 4, vy: 3 },
+      aiTarget: H/2,
+    };
+
+    // Touch Y positions (canvas coords), null = no touch on that side
+    const tp = { left: null, right: null };
+
+    // ── Screen management ────────────────────────────────────────────
+    function showScreen(id) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('visible'));
+      const el = document.getElementById(id);
+      if (el) el.classList.add('visible');
+      // game screen uses its own display logic
+      document.getElementById('game').classList.remove('visible');
+      if (id === 'game') document.getElementById('game').classList.add('visible');
+    }
+
+    function showMenu()        { showScreen('menu'); }
+    function showLeaderboard() { renderLeaderboard(); showScreen('leaderboard'); }
+
+    // ── Responsive scaling ────────────────────────────────────────────
+    const WRAP_W = 800, WRAP_H = 560; // canvas + chrome height
+
+    function resizeGame() {
+      const scale = Math.min(
+        window.innerWidth  / (WRAP_W + 16),
+        window.innerHeight / (WRAP_H + 16),
+        1
+      );
+      const wrap = document.getElementById('game-wrap');
+      wrap.style.transform = `translate(-50%, -50%) scale(${scale})`;
+
+      // Portrait hint on small touch devices
+      const ph = document.getElementById('portrait-hint');
+      ph.style.display =
+        (isTouch && window.innerWidth < window.innerHeight && window.innerWidth < 600)
+          ? 'block' : 'none';
+    }
+
+    window.addEventListener('resize', resizeGame);
+    window.addEventListener('orientationchange', () => setTimeout(resizeGame, 150));
+
+    // ── Touch detection & events ──────────────────────────────────────
+    function detectTouch() {
+      isTouch = window.matchMedia('(hover: none) and (pointer: coarse)').matches
+             || ('ontouchstart' in window);
+    }
+
+    function canvasTouchPos(touch) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: (touch.clientX - rect.left) / rect.width  * W,
+        y: (touch.clientY - rect.top)  / rect.height * H,
+      };
+    }
+
+    canvas.addEventListener('touchstart', onCanvasTouch, { passive: false });
+    canvas.addEventListener('touchmove',  onCanvasTouch, { passive: false });
+    canvas.addEventListener('touchend',   onCanvasTouch, { passive: false });
+    canvas.addEventListener('touchcancel',onCanvasTouch, { passive: false });
+
+    function onCanvasTouch(e) {
+      e.preventDefault();
+      isTouch = true;
+
+      tp.left = null;
+      tp.right = null;
+
+      for (const t of e.touches) {
+        const pos = canvasTouchPos(t);
+        if (pos.x < W / 2) tp.left  = pos.y;
+        else                tp.right = pos.y;
+      }
+
+      if (e.type === 'touchstart') {
+        if (!running && document.getElementById('game').classList.contains('visible')) {
+          if (lastWinner !== null) {
+            playAgain();
+          } else {
+            beginRunning();
+          }
+        }
+      }
+
+      updateOverlay();
+    }
+
+    // ── Menu logic ────────────────────────────────────────────────────
+    function selectMode(m) {
+      mode = m;
+      document.getElementById('btn-vs-cpu').classList.toggle('active', m === 'cpu');
+      document.getElementById('btn-vs-human').classList.toggle('active', m === 'human');
+      const cpu = m === 'cpu';
+      document.getElementById('diff-label').style.opacity       = cpu ? '0.5'  : '0.15';
+      document.getElementById('diff-group').style.opacity       = cpu ? '1'    : '0.25';
+      document.getElementById('diff-group').style.pointerEvents = cpu ? 'auto' : 'none';
+    }
+
+    function selectDiff(d) {
+      difficulty = d;
+      ['easy','medium','hard'].forEach(x =>
+        document.getElementById('btn-' + x).classList.toggle('active', x === d)
+      );
+    }
+
+    // ── Game flow ─────────────────────────────────────────────────────
+    function startGame() {
+      showScreen('game');
+      resizeGame();
+      state.left.score = state.right.score = 0;
+      lastWinner = null;
+      tp.left = tp.right = null;
+      reset(1);
+      updateInfo();
+      msg.textContent = isTouch ? 'Tap to Start' : 'Press Space to Start';
+      btnPause.textContent = 'Pause';
+      draw();
+    }
+
+    function goToMenu() {
+      running = false;
+      cancelAnimationFrame(animId);
+      showMenu();
+    }
+
+    function beginRunning() {
+      if (running) return;
+      running = true;
+      msg.textContent = '';
+      btnPause.textContent = 'Pause';
+      loop();
+    }
+
+    function togglePause() {
+      if (lastWinner !== null) return;
+      running = !running;
+      if (running) {
+        msg.textContent = '';
+        btnPause.textContent = 'Pause';
+        loop();
+      } else {
+        cancelAnimationFrame(animId);
+        msg.textContent = isTouch ? 'Tap to Resume' : 'Paused — Space to Resume';
+        btnPause.textContent = 'Resume';
+      }
+    }
+
+    function playAgain() {
+      state.left.score = state.right.score = 0;
+      lastWinner = null;
+      reset(1);
+      msg.textContent = '';
+      btnPause.textContent = 'Pause';
+      running = true;
+      loop();
+    }
+
+    // ── Keyboard ──────────────────────────────────────────────────────
+    const keys = {};
+    document.addEventListener('keydown', e => {
+      keys[e.key] = true;
+      if (e.key === 'Escape') { goToMenu(); return; }
+      if (!document.getElementById('game').classList.contains('visible')) return;
+      if (e.key === ' ') {
+        e.preventDefault();
+        if (lastWinner !== null) { playAgain(); }
+        else if (!running)       { beginRunning(); }
+        else                     { togglePause(); }
+      }
+    });
+    document.addEventListener('keyup', e => { keys[e.key] = false; });
+
+    // ── Game helpers ──────────────────────────────────────────────────
+    function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+    function reset(dir = 1) {
+      state.ball.x   = W / 2;
+      state.ball.y   = H / 2;
+      state.ball.vx  = 4 * dir;
+      state.ball.vy  = (Math.random() * 4 + 2) * (Math.random() < 0.5 ? 1 : -1);
+      state.aiTarget = H / 2;
+    }
+
+    function updateAI() {
+      const b = state.ball, spd = AI_SPEED[difficulty], err = AI_ERROR[difficulty];
+      if (b.vx > 0) {
+        const t = (W - 20 - PAD_W - b.x) / b.vx;
+        let py = b.y + b.vy * t;
+        py = py % (H * 2);
+        if (py < 0) py += H * 2;
+        if (py > H) py = H * 2 - py;
+        state.aiTarget = py + (Math.random() * 2 - 1) * err;
+      }
+      const center = state.right.y + PAD_H / 2;
+      if      (center < state.aiTarget - 4) state.right.y += spd;
+      else if (center > state.aiTarget + 4) state.right.y -= spd;
+      state.right.y = clamp(state.right.y, 0, H - PAD_H);
+    }
+
+    function update() {
+      const SPD = 6;
+
+      // Left paddle — touch takes priority over keyboard
+      if (tp.left !== null) {
+        state.left.y = clamp(tp.left - PAD_H / 2, 0, H - PAD_H);
+      } else {
+        if (keys['w'] || keys['W']) state.left.y = clamp(state.left.y - SPD, 0, H - PAD_H);
+        if (keys['s'] || keys['S']) state.left.y = clamp(state.left.y + SPD, 0, H - PAD_H);
+      }
+
+      // Right paddle
+      if (mode === 'human') {
+        if (tp.right !== null) {
+          state.right.y = clamp(tp.right - PAD_H / 2, 0, H - PAD_H);
+        } else {
+          if (keys['ArrowUp'])   state.right.y = clamp(state.right.y - SPD, 0, H - PAD_H);
+          if (keys['ArrowDown']) state.right.y = clamp(state.right.y + SPD, 0, H - PAD_H);
+        }
+      } else {
+        updateAI();
+      }
+
+      const b = state.ball;
+      b.x += b.vx; b.y += b.vy;
+
+      if (b.y <= BALL_R)     { b.y = BALL_R;     b.vy *= -1; }
+      if (b.y >= H - BALL_R) { b.y = H - BALL_R; b.vy *= -1; }
+
+      // Left paddle collision
+      const lp = state.left;
+      if (b.x - BALL_R <= PAD_W + 20 && b.x - BALL_R >= 20 &&
+          b.y >= lp.y && b.y <= lp.y + PAD_H) {
+        b.x   = PAD_W + 20 + BALL_R;
+        b.vx  = Math.abs(b.vx) + SPEED_INC;
+        b.vy += ((b.y - (lp.y + PAD_H / 2)) / (PAD_H / 2)) * 2;
+      }
+
+      // Right paddle collision
+      const rp = state.right;
+      if (b.x + BALL_R >= W - PAD_W - 20 && b.x + BALL_R <= W - 20 &&
+          b.y >= rp.y && b.y <= rp.y + PAD_H) {
+        b.x   = W - PAD_W - 20 - BALL_R;
+        b.vx  = -(Math.abs(b.vx) + SPEED_INC);
+        b.vy += ((b.y - (rp.y + PAD_H / 2)) / (PAD_H / 2)) * 2;
+      }
+
+      b.vy = clamp(b.vy, -10, 10);
+
+      if (b.x < 0) { state.right.score++; checkWin(mode === 'cpu' ? 'Computer' : 'P2'); reset(1);  }
+      if (b.x > W) { state.left.score++;  checkWin('P1'); reset(-1); }
+    }
+
+    function checkWin(winner) {
+      if (state.left.score >= 7 || state.right.score >= 7) {
+        running = false;
+        lastWinner = winner;
+        msg.textContent = isTouch
+          ? `${winner} wins! Tap to play again`
+          : `${winner} wins! — Space to play again`;
+        saveResult(winner);
+      }
+    }
+
+    // ── Draw ──────────────────────────────────────────────────────────
+    function draw() {
+      ctx.clearRect(0, 0, W, H);
+
+      // Centre dashes
+      ctx.setLineDash([10, 10]);
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(W/2, 0); ctx.lineTo(W/2, H); ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Paddles
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(20, state.left.y,  PAD_W, PAD_H);
+      ctx.fillRect(W - 20 - PAD_W, state.right.y, PAD_W, PAD_H);
+
+      // Ball
+      ctx.beginPath();
+      ctx.arc(state.ball.x, state.ball.y, BALL_R, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Scores
+      ctx.font = 'bold 48px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(255,255,255,0.8)';
+      ctx.fillText(state.left.score,  W/4,   60);
+      ctx.fillText(state.right.score, W*3/4, 60);
+
+      // Side labels
+      ctx.font = '12px monospace';
+      ctx.fillStyle = 'rgba(255,255,255,0.3)';
+      ctx.fillText('P1',                       W/4,   80);
+      ctx.fillText(mode === 'cpu' ? 'CPU':'P2', W*3/4, 80);
+    }
+
+    // Overlay: touch zone indicators (shown while a touch is active)
+    function updateOverlay() {
+      octx.clearRect(0, 0, W, H);
+      if (!isTouch) return;
+
+      function drawZone(x, w, active) {
+        if (!active) return;
+        octx.fillStyle = 'rgba(255,255,255,0.06)';
+        octx.fillRect(x, 0, w, H);
+      }
+      drawZone(0,   W/2, tp.left  !== null);
+      drawZone(W/2, W/2, tp.right !== null);
+
+      // Static hint text when nothing is touching (only if game hasn't started)
+      if (tp.left === null && tp.right === null && !running) {
+        octx.font = '13px monospace';
+        octx.fillStyle = 'rgba(255,255,255,0.2)';
+        octx.textAlign = 'center';
+        octx.fillText('touch', W/4,   H/2);
+        if (mode === 'human') octx.fillText('touch', W*3/4, H/2);
+      }
+    }
+
+    function updateInfo() {
+      if (isTouch) {
+        info.textContent = mode === 'human'
+          ? 'Drag left side — P1  |  Drag right side — P2'
+          : 'Drag left side to move your paddle';
+      } else {
+        info.textContent = mode === 'human'
+          ? 'W/S — P1  |  ↑/↓ — P2  |  Space — Pause  |  Esc — Menu'
+          : 'W/S — Your paddle  |  Space — Pause  |  Esc — Menu';
+      }
+    }
+
+    function loop() {
+      update(); draw();
+      if (running) animId = requestAnimationFrame(loop);
+    }
+
+    // ── Leaderboard ───────────────────────────────────────────────────
+    const LB_KEY = 'pong_leaderboard';
+    function loadLB()     { try { return JSON.parse(localStorage.getItem(LB_KEY)) || []; } catch { return []; } }
+    function saveLB(data) { localStorage.setItem(LB_KEY, JSON.stringify(data)); }
+
+    function saveResult(winner) {
+      const lb = loadLB();
+      lb.unshift({
+        winner,
+        mode:  mode === 'cpu' ? `vs CPU (${difficulty})` : '2 Players',
+        score: `${state.left.score}–${state.right.score}`,
+        date:  new Date().toLocaleDateString(),
+      });
+      saveLB(lb.slice(0, 20));
+    }
+
+    function renderLeaderboard() {
+      const lb    = loadLB();
+      const body  = document.getElementById('lb-body');
+      const empty = document.getElementById('lb-empty');
+      body.innerHTML = '';
+      if (!lb.length) { empty.style.display = 'block'; return; }
+      empty.style.display = 'none';
+      lb.forEach((e, i) => {
+        const tr = document.createElement('tr');
+        if (i === 0) tr.classList.add('highlight');
+        tr.innerHTML = `<td>${i+1}</td><td>${e.winner}</td><td>${e.mode}</td><td>${e.score}</td><td>${e.date}</td>`;
+        body.appendChild(tr);
+      });
+    }
+
+    function clearLeaderboard() {
+      if (confirm('Clear the leaderboard?')) { saveLB([]); renderLeaderboard(); }
+    }
+
+    // ── Init ──────────────────────────────────────────────────────────
+    detectTouch();
+    selectMode('cpu');
+    selectDiff('medium');
+    resizeGame();
+  </script>
+</body>
+</html>
