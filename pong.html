@@ -45,13 +45,13 @@
     #auth-card {
       border: 1px solid rgba(255,255,255,0.18);
       padding: 14px 22px;
-      display: flex;
+      display: none;
       flex-direction: column;
       align-items: center;
       gap: 10px;
       width: min(340px, 90vw);
     }
-    #auth-loading { font-size: 12px; opacity: 0.35; }
+    #auth-loading { display: none; }
     #auth-signin  { display: none; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
     #auth-user    { display: none; align-items: center; gap: 10px; }
     #auth-avatar  { width: 30px; height: 30px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.35); }
@@ -244,9 +244,8 @@
     const authUser    = document.getElementById('auth-user');
 
     if (!CONFIGURED) {
-      authLoading.textContent = 'Local scores only — Firebase not configured';
       window.fbReady = false;
-      return;
+      return; // auth card stays hidden — no Firebase, no card
     }
 
     const V   = '10.12.0';
@@ -264,7 +263,7 @@
 
     // ── Auth state ────────────────────────────────────────────────────────
     onAuthStateChanged(auth, user => {
-      authLoading.style.display = 'none';
+      document.getElementById('auth-card').style.display = 'flex';
       window.fbCurrentUser = user;
 
       if (user) {
