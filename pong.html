@@ -102,7 +102,8 @@
     #message { font-size: 20px; text-align: center; flex: 1; min-height: 26px; }
     .game-ctrl-btn { font-size: 13px; padding: 5px 12px; opacity: 0.65; border-color: rgba(255,255,255,0.4); flex-shrink: 0; }
     .game-ctrl-btn:hover { opacity: 1; }
-    #btn-sound { min-width: 38px; padding: 5px 8px; font-size: 17px; line-height: 1; }
+    #btn-sound { min-width: 38px; padding: 5px 8px; line-height: 1; display: flex; align-items: center; justify-content: center; }
+    #btn-sound svg { width: 18px; height: 18px; display: block; }
     #game-right-controls { display: flex; gap: 6px; align-items: center; }
     #info { margin-top: 9px; font-size: 12px; opacity: 0.4; text-align: center; width: 800px; min-height: 16px; }
     #online-badge {
@@ -222,7 +223,7 @@
         <button class="game-ctrl-btn" onclick="goToMenu()">&#8592; Menu</button>
         <div id="message"></div>
         <div id="game-right-controls">
-          <button class="game-ctrl-btn" id="btn-sound" onclick="toggleSound()" title="Toggle sound">🔊</button>
+          <button class="game-ctrl-btn" id="btn-sound" onclick="toggleSound()" title="Toggle sound"><svg viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="7" width="4" height="6"/><polygon points="5,7 11,2 11,18 5,13"/><path d="M13 6.5 Q16.5 10 13 13.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"/><path d="M15.5 4 Q20.5 10 15.5 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"/></svg></button>
           <button class="game-ctrl-btn" id="btn-pause" onclick="togglePause()">Pause</button>
         </div>
       </div>
@@ -378,7 +379,9 @@
     };
     function toggleSound() {
       soundEnabled = !soundEnabled;
-      btnSound.textContent = soundEnabled ? '🔊' : '🔇';
+      btnSound.innerHTML = soundEnabled
+        ? `<svg viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="7" width="4" height="6"/><polygon points="5,7 11,2 11,18 5,13"/><path d="M13 6.5 Q16.5 10 13 13.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"/><path d="M15.5 4 Q20.5 10 15.5 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"/></svg>`
+        : `<svg viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="7" width="4" height="6"/><polygon points="5,7 11,2 11,18 5,13"/><line x1="13" y1="7" x2="19" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="square"/><line x1="19" y1="7" x2="13" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="square"/></svg>`;
       if (soundEnabled) sfx.click();
     }
 
