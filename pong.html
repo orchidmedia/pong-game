@@ -402,6 +402,8 @@
     let opponentName = '';
     let onlineSubs   = [];     // RTDB listeners to detach on leave
     let lastSyncAt   = 0;
+    let myReady      = false;
+    let countdownAnimId = null;
 
     function myDisplayName() {
       return window.fbCurrentUser?.displayName || 'Player';
@@ -445,7 +447,14 @@
         if (cx < W/2) tp.left = cy; else tp.right = cy;
       }
       if (e.type === 'touchstart' && !running && document.getElementById('game').classList.contains('visible')) {
-        if (onlineRole) return; // online start is automatic
+        if (onlineRole) {
+          if (lastWinner === null && !myReady) {
+            myReady = true;
+            roomRef.child(onlineRole === 'host' ? 'ready/host' : 'ready/guest').set(true);
+            msg.textContent = 'Ready! Waiting for opponent…';
+          }
+          return;
+        }
         lastWinner !== null ? playAgain() : beginRunning();
       }
       updateOverlay();
@@ -590,12 +599,15 @@
     function leaveRoom() {
       onlineSubs.forEach(({ ref, event, cb }) => ref.off(event, cb));
       onlineSubs = [];
+      cancelAnimationFrame(countdownAnimId);
+      countdownAnimId = null;
       if (roomRef) {
         if (onlineRole === 'host') roomRef.remove();
         else roomRef.child('guest').remove();
         roomRef = null;
       }
       onlineRole = onlineCode = null;
+      myReady = false;
     }
 
     // ── Launch online game ─────────────────────────────────────────────────
@@ -604,29 +616,27 @@
       resizeGame();
       state.left.score = state.right.score = 0;
       state.left.y = state.right.y = H/2 - PAD_H/2;
-      reset(1);
+      state.ball.x = W/2; state.ball.y = H/2; state.ball.vx = 4; state.ball.vy = 3;
       lastWinner = null;
+      myReady = false;
       tp.left = tp.right = null;
-      btnPause.style.display = 'none'; // can't pause online games
+      btnPause.style.display = 'none';
 
       document.getElementById('online-badge').textContent = `🔴 ${onlineCode}`;
-      msg.textContent = onlineRole === 'host'
-        ? `vs ${opponentName} — You serve!`
-        : `vs ${opponentName} — Get ready!`;
-
+      msg.textContent = isTouch ? '👆 Tap to ready!' : 'Press SPACE when ready!';
       info.textContent = isTouch
         ? (onlineRole === 'host' ? 'Drag left side — your paddle' : 'Drag right side — your paddle')
-        : (onlineRole === 'host' ? 'W/S — your paddle  |  Esc — leave' : '↑/↓ — your paddle  |  Esc — leave');
+        : (onlineRole === 'host' ? 'W/S — paddle  |  Space — ready  |  Esc — leave'
+                                 : '↑/↓ — paddle  |  Space — ready  |  Esc — leave');
 
       setupRTDBListeners();
 
-      after(2000, () => {
-        if (!document.getElementById('game').classList.contains('visible')) return;
-        msg.textContent = '';
-        running = true;
-        if (onlineRole === 'host') hostLoop();
-        else guestLoop();
-      });
+      // Host initialises ready flags in RTDB
+      if (onlineRole === 'host') {
+        roomRef.child('ready').set({ host: false, guest: false });
+        roomRef.child('resumeAt').remove();
+      }
+      draw();
     }
 
     // ── RTDB sync ──────────────────────────────────────────────────────────
@@ -634,6 +644,37 @@
       function sub(ref, event, cb) {
         ref.on(event, cb);
         onlineSubs.push({ ref, event, cb });
+      }
+
+      // ── Ready coordination (both players watch) ──
+      sub(roomRef.child('ready'), 'value', snap => {
+        if (running || lastWinner !== null) return;
+        const r = snap.val();
+        if (!r) return;
+        if (r.host && r.guest) {
+          // Both ready — host triggers countdown via resumeAt, runs it locally too
+          if (onlineRole === 'host') {
+            roomRef.child('resumeAt').set(Date.now() + 3000);
+            startCountdown(3);
+          }
+          // Guest countdown triggered by resumeAt listener below
+        } else {
+          const myFlag = onlineRole === 'host' ? r.host : r.guest;
+          if (myFlag) msg.textContent = 'Waiting for opponent…';
+        }
+      });
+
+      // ── Guest listens for countdown/round-resume signal from host ──
+      if (onlineRole === 'guest') {
+        sub(roomRef.child('resumeAt'), 'value', snap => {
+          const t = snap.val();
+          if (!t || running) return;
+          cancelAnimationFrame(animId);
+          cancelAnimationFrame(countdownAnimId);
+          running = false;
+          const secs = Math.min(3, Math.max(1, Math.round((t - Date.now()) / 1000)));
+          startCountdown(secs);
+        });
       }
 
       if (onlineRole === 'host') {
@@ -647,10 +688,22 @@
         });
 
       } else {
-        // Guest reads ball + host paddle + scores from host
+        // Guest reads ball + host paddle + scores; applies client-side prediction correction
         sub(roomRef.child('ball'), 'value', snap => {
           const b = snap.val();
-          if (b) Object.assign(state.ball, b);
+          if (!b) return;
+          const dx = b.x - state.ball.x;
+          const dy = b.y - state.ball.y;
+          if (Math.abs(dx) > 60 || Math.abs(dy) > 60) {
+            // Hard snap — goal reset or large divergence
+            Object.assign(state.ball, b);
+          } else {
+            // Soft correction — adopt server velocity, nudge position gently
+            state.ball.vx = b.vx;
+            state.ball.vy = b.vy;
+            state.ball.x += dx * 0.35;
+            state.ball.y += dy * 0.35;
+          }
         });
         sub(roomRef.child('host/paddleY'), 'value', snap => {
           if (snap.val() !== null) state.left.y = snap.val();
@@ -677,9 +730,51 @@
       }
     }
 
+    // ── Countdown (both sides call this) ───────────────────────────────────
+    function startCountdown(n) {
+      cancelAnimationFrame(countdownAnimId);
+      running = false;
+
+      if (n > 0) {
+        msg.textContent = String(n);
+        sfx.click();
+
+        // Animate paddles during countdown (no ball physics)
+        function cdFrame() {
+          if (running) return; // game loop took over, stop
+          const SPD = 6;
+          if (onlineRole === 'host') {
+            if (tp.left !== null) state.left.y = clamp(tp.left - PAD_H/2, 0, H - PAD_H);
+            else {
+              if (keys['w']||keys['W']) state.left.y = clamp(state.left.y - SPD, 0, H - PAD_H);
+              if (keys['s']||keys['S']) state.left.y = clamp(state.left.y + SPD, 0, H - PAD_H);
+            }
+            syncHostToRTDB();
+          } else {
+            if (tp.right !== null) state.right.y = clamp(tp.right - PAD_H/2, 0, H - PAD_H);
+            else {
+              if (keys['ArrowUp'])   state.right.y = clamp(state.right.y - SPD, 0, H - PAD_H);
+              if (keys['ArrowDown']) state.right.y = clamp(state.right.y + SPD, 0, H - PAD_H);
+            }
+            syncGuestToRTDB();
+          }
+          draw();
+          countdownAnimId = requestAnimationFrame(cdFrame);
+        }
+        countdownAnimId = requestAnimationFrame(cdFrame);
+        after(1000, () => startCountdown(n - 1));
+
+      } else {
+        msg.textContent = '';
+        running = true;
+        if (onlineRole === 'host') hostLoop();
+        else guestLoop();
+      }
+    }
+
     function syncHostToRTDB() {
       const now = Date.now();
-      if (now - lastSyncAt < 33) return; // ~30fps
+      if (now - lastSyncAt < 16) return; // ~60fps
       lastSyncAt = now;
       roomRef.update({
         'ball/x':        state.ball.x,
@@ -694,7 +789,7 @@
 
     function syncGuestToRTDB() {
       const now = Date.now();
-      if (now - lastSyncAt < 33) return;
+      if (now - lastSyncAt < 16) return; // ~60fps
       lastSyncAt = now;
       roomRef.child('guest/paddleY').set(state.right.y);
     }
@@ -747,12 +842,26 @@
       }
       b.vy = clamp(b.vy, -10, 10);
 
-      if (b.x < 0) { state.right.score++; sfx.score(); checkOnlineWin(); reset(1);  }
-      if (b.x > W) { state.left.score++;  sfx.score(); checkOnlineWin(); reset(-1); }
+      if (b.x < 0) {
+        state.right.score++; sfx.score();
+        if (!checkOnlineWin()) {
+          running = false; reset(1); syncHostToRTDB();
+          roomRef.child('resumeAt').set(Date.now() + 3000);
+          startCountdown(3);
+        }
+      }
+      if (b.x > W) {
+        state.left.score++; sfx.score();
+        if (!checkOnlineWin()) {
+          running = false; reset(-1); syncHostToRTDB();
+          roomRef.child('resumeAt').set(Date.now() + 3000);
+          startCountdown(3);
+        }
+      }
     }
 
     function checkOnlineWin() {
-      if (state.left.score < 7 && state.right.score < 7) return;
+      if (state.left.score < 7 && state.right.score < 7) return false;
       running = false;
       const winner = state.left.score >= 7 ? myName : opponentName;
       roomRef.child('winner').set(winner);
@@ -761,6 +870,7 @@
       lastWinner = winner;
       saveResult(winner, winner, 'Online');
       after(3000, goToMenu);
+      return true;
     }
 
     // ── Guest game loop ────────────────────────────────────────────────────
@@ -780,7 +890,13 @@
         if (keys['ArrowUp'])   state.right.y = clamp(state.right.y - SPD, 0, H - PAD_H);
         if (keys['ArrowDown']) state.right.y = clamp(state.right.y + SPD, 0, H - PAD_H);
       }
-      // Ball, left paddle and scores come from RTDB listeners
+      // Client-side ball prediction — simulates physics locally between RTDB updates
+      // RTDB listener soft-corrects divergence. Eliminates most perceived lag.
+      const b = state.ball;
+      b.x += b.vx; b.y += b.vy;
+      if (b.y <= BALL_R)     { b.y = BALL_R;     b.vy = Math.abs(b.vy); }
+      if (b.y >= H - BALL_R) { b.y = H - BALL_R; b.vy = -Math.abs(b.vy); }
+      b.vy = clamp(b.vy, -10, 10);
     }
 
     // ── Local game flow ────────────────────────────────────────────────────
@@ -838,11 +954,20 @@
       keys[e.key] = true;
       if (e.key === 'Escape') { goToMenu(); return; }
       if (!document.getElementById('game').classList.contains('visible')) return;
-      if (e.key === ' ' && !onlineRole) {
+      if (e.key === ' ') {
         e.preventDefault();
-        if (lastWinner !== null) playAgain();
-        else if (!running)       beginRunning();
-        else                     togglePause();
+        if (onlineRole) {
+          // Online: space = set ready (only before game starts, once)
+          if (!running && lastWinner === null && !myReady) {
+            myReady = true;
+            roomRef.child(onlineRole === 'host' ? 'ready/host' : 'ready/guest').set(true);
+            msg.textContent = 'Ready! Waiting for opponent…';
+          }
+        } else {
+          if (lastWinner !== null) playAgain();
+          else if (!running)       beginRunning();
+          else                     togglePause();
+        }
       }
     });
     document.addEventListener('keyup', e => { keys[e.key] = false; });
