@@ -329,7 +329,7 @@
       fbFS.collection('leaderboard').add({
         ...entry,
         uid:         window.fbCurrentUser?.uid  || null,
-        displayName: window.fbCurrentUser?.displayName || entry.winner,
+        displayName: myDisplayName() || entry.winner,
         timestamp:   firebase.firestore.FieldValue.serverTimestamp(),
       });
 
@@ -1062,7 +1062,10 @@
     function checkWin(winner) {
       if (state.left.score<7 && state.right.score<7) return;
       running=false; lastWinner=winner; sfx.win();
-      const name = window.fbCurrentUser?.displayName || winner;
+      // Map internal label → display name
+      const name = winner === 'P1' ? myDisplayName()
+                 : winner === 'P2' ? 'P2'
+                 : 'Computer';
       msg.textContent = isTouch ? `${name} wins! — Tap to play again` : `${name} wins! — Space to play again`;
       saveResult(winner, name, mode==='cpu'?`vs CPU (${difficulty})`:'Local 2P');
     }
