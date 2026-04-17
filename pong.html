@@ -41,6 +41,38 @@
     /* ── MENU ── */
     #menu h1 { font-size: clamp(28px, 12vw, 52px); letter-spacing: clamp(4px, 2vw, 8px); margin-bottom: 4px; }
 
+    /* Online panel */
+    #online-panel {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      border: 1px solid rgba(255,255,255,0.2);
+      padding: 18px 24px;
+      width: min(340px, 90vw);
+    }
+    #ol-code-input {
+      background: transparent;
+      border: 2px solid #fff;
+      color: #fff;
+      font-family: monospace;
+      font-size: 32px;
+      letter-spacing: 10px;
+      text-align: center;
+      text-transform: uppercase;
+      width: 180px;
+      padding: 8px 4px;
+      outline: none;
+    }
+    #ol-code-display {
+      font-size: 48px;
+      letter-spacing: 12px;
+      font-weight: bold;
+      text-align: center;
+    }
+    #ol-status { font-size: 13px; opacity: 0.5; text-align: center; }
+    .ol-actions { display: flex; gap: 10px; }
+
     /* Auth card */
     #auth-card {
       border: 1px solid rgba(255,255,255,0.18);
@@ -61,35 +93,22 @@
     .auth-provider-btns button { font-size: 13px; padding: 7px 16px; display: flex; align-items: center; gap: 6px; }
     #auth-signout { font-size: 12px; padding: 4px 12px; opacity: 0.55; }
 
-    /* ── GAME (fixed overlay) ── */
+    /* ── GAME ── */
     #game { display: none; position: fixed; inset: 0; }
     #game.visible { display: block; }
-    #game-wrap {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform-origin: center center;
-      width: 800px;
-    }
-    #game-top {
-      display: flex;
-      width: 800px;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 8px;
-    }
+    #game-wrap { position: absolute; top: 50%; left: 50%; transform-origin: center center; width: 800px; }
+    #game-top { display: flex; width: 800px; justify-content: space-between; align-items: center; margin-bottom: 8px; }
     #message { font-size: 20px; text-align: center; flex: 1; min-height: 26px; }
-    .game-ctrl-btn {
-      font-size: 13px;
-      padding: 5px 12px;
-      opacity: 0.65;
-      border-color: rgba(255,255,255,0.4);
-      flex-shrink: 0;
-    }
+    .game-ctrl-btn { font-size: 13px; padding: 5px 12px; opacity: 0.65; border-color: rgba(255,255,255,0.4); flex-shrink: 0; }
     .game-ctrl-btn:hover { opacity: 1; }
     #btn-sound { min-width: 38px; padding: 5px 8px; font-size: 17px; line-height: 1; }
     #game-right-controls { display: flex; gap: 6px; align-items: center; }
     #info { margin-top: 9px; font-size: 12px; opacity: 0.4; text-align: center; width: 800px; min-height: 16px; }
+    #online-badge {
+      position: absolute; top: 8px; right: 8px;
+      font-size: 11px; opacity: 0.4;
+      pointer-events: none;
+    }
 
     /* ── LEADERBOARD ── */
     #leaderboard h2 { font-size: clamp(20px, 7vw, 32px); letter-spacing: 4px; margin-bottom: 4px; }
@@ -112,15 +131,9 @@
 
     /* Portrait hint */
     #portrait-hint {
-      display: none;
-      position: fixed;
-      bottom: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      font-size: 11px;
-      opacity: 0.35;
-      pointer-events: none;
-      white-space: nowrap;
+      display: none; position: fixed; bottom: 10px; left: 50%;
+      transform: translateX(-50%); font-size: 11px; opacity: 0.35;
+      pointer-events: none; white-space: nowrap;
     }
   </style>
 </head>
@@ -133,7 +146,8 @@
     <div class="label">Mode</div>
     <div class="btn-group">
       <button id="btn-vs-cpu"   class="active" onclick="selectMode('cpu')">vs Computer</button>
-      <button id="btn-vs-human" onclick="selectMode('human')">2 Players</button>
+      <button id="btn-vs-human" onclick="selectMode('human')">Local</button>
+      <button id="btn-online"   onclick="selectMode('online')">Online</button>
     </div>
 
     <div class="label" id="diff-label">Difficulty</div>
@@ -143,15 +157,40 @@
       <button id="btn-hard"   onclick="selectDiff('hard')">Hard</button>
     </div>
 
-    <button onclick="startGame()"
+    <button id="btn-start" onclick="startGame()"
       style="margin-top:6px;font-size:clamp(14px,4vw,18px);padding:clamp(10px,2.5vw,12px) clamp(30px,8vw,48px);">
       START
     </button>
 
+    <!-- Online panel -->
+    <div id="online-panel">
+      <!-- Step 1: choose action -->
+      <div id="ol-choice" class="ol-actions">
+        <button onclick="createRoom()">Create Room</button>
+        <button onclick="showJoinForm()">Join Room</button>
+      </div>
+      <!-- Step 2a: waiting as host -->
+      <div id="ol-waiting" style="display:none;flex-direction:column;align-items:center;gap:10px;">
+        <div class="label">Your room code</div>
+        <div id="ol-code-display"></div>
+        <div id="ol-status">Waiting for opponent…</div>
+        <button onclick="cancelRoom()" style="font-size:13px;padding:6px 16px;opacity:0.6;">Cancel</button>
+      </div>
+      <!-- Step 2b: join form -->
+      <div id="ol-join-form" style="display:none;flex-direction:column;align-items:center;gap:10px;">
+        <div class="label">Enter room code</div>
+        <input id="ol-code-input" maxlength="4" autocomplete="off" spellcheck="false" placeholder="XXXX"
+          oninput="this.value=this.value.toUpperCase()">
+        <div class="ol-actions">
+          <button onclick="joinRoom()">Join</button>
+          <button onclick="showOlChoice()" style="opacity:0.6;">Back</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Auth card -->
     <div id="auth-card">
       <div id="auth-loading" class="label">Connecting…</div>
-
       <div id="auth-signin">
         <div class="label">Sign in to save scores online</div>
         <div class="auth-provider-btns">
@@ -165,13 +204,9 @@
           </button>
         </div>
       </div>
-
       <div id="auth-user">
         <img id="auth-avatar" src="" alt="" style="display:none;">
-        <div>
-          <div id="auth-name"></div>
-          <div id="auth-provider"></div>
-        </div>
+        <div><div id="auth-name"></div><div id="auth-provider"></div></div>
         <button id="auth-signout" onclick="doSignOut()">Sign out</button>
       </div>
     </div>
@@ -193,6 +228,7 @@
       <div style="position:relative;line-height:0;">
         <canvas id="c" width="800" height="500" style="border:2px solid #fff;display:block;"></canvas>
         <canvas id="overlay" width="800" height="500" style="position:absolute;top:0;left:0;pointer-events:none;"></canvas>
+        <div id="online-badge"></div>
       </div>
       <div id="info"></div>
     </div>
@@ -217,99 +253,82 @@
 
   <div id="portrait-hint">Rotate to landscape for best experience</div>
 
-  <!-- ══ FIREBASE MODULE ═══════════════════════════════════════════════ -->
-  <script type="module">
-    // ─────────────────────────────────────────────────────────────────────
-    // FIREBASE SETUP — paste your config below.
-    //
-    // Steps:
-    //  1. Go to https://console.firebase.google.com → create a project
-    //  2. Add a Web app → copy the config object here
-    //  3. Authentication → Sign-in method → enable Google and GitHub
-    //     (GitHub requires a GitHub OAuth App; Firebase shows the callback URL)
-    //  4. Firestore Database → Create database (test mode is fine to start)
-    // ─────────────────────────────────────────────────────────────────────
-    const FIREBASE_CONFIG = {
-      apiKey:            "YOUR_API_KEY",
-      authDomain:        "YOUR_PROJECT_ID.firebaseapp.com",
-      projectId:         "YOUR_PROJECT_ID",
-      storageBucket:     "YOUR_PROJECT_ID.appspot.com",
-      messagingSenderId: "YOUR_SENDER_ID",
-      appId:             "YOUR_APP_ID",
-    };
+  <!-- ══ FIREBASE ══════════════════════════════════════════════════════ -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <script>
+    firebase.initializeApp({
+      apiKey:            "AIzaSyDZ1Wpeky97MgYIQH2iCR2nYhubNeycZOg",
+      authDomain:        "pong-orchid.firebaseapp.com",
+      databaseURL:       "https://pong-orchid-default-rtdb.firebaseio.com",
+      projectId:         "pong-orchid",
+      storageBucket:     "pong-orchid.firebasestorage.app",
+      messagingSenderId: "336829577877",
+      appId:             "1:336829577877:web:4950a07b6ba4cdb70c799c",
+    });
 
-    const CONFIGURED = FIREBASE_CONFIG.apiKey !== 'YOUR_API_KEY';
-    const authLoading = document.getElementById('auth-loading');
-    const authSignin  = document.getElementById('auth-signin');
-    const authUser    = document.getElementById('auth-user');
+    const fbAuth = firebase.auth();
+    const fbFS   = firebase.firestore();
+    const fbRTDB = firebase.database();
 
-    if (!CONFIGURED) {
-      window.fbReady = false;
-      return; // auth card stays hidden — no Firebase, no card
-    }
+    // ── Auth UI ───────────────────────────────────────────────────────────
+    const authCard   = document.getElementById('auth-card');
+    const authSignin = document.getElementById('auth-signin');
+    const authUser   = document.getElementById('auth-user');
 
-    const V   = '10.12.0';
-    const cdn = p => `https://www.gstatic.com/firebasejs/${V}/${p}`;
+    authCard.style.display         = 'flex';
+    authSignin.style.display       = 'flex';
+    authSignin.style.flexDirection = 'column';
+    authSignin.style.alignItems    = 'center';
 
-    const { initializeApp } = await import(cdn('firebase-app.js'));
-    const { getAuth, signInWithPopup, GoogleAuthProvider, GithubAuthProvider, onAuthStateChanged, signOut }
-      = await import(cdn('firebase-auth.js'));
-    const { getFirestore, collection, addDoc, getDocs, query, orderBy, limit, serverTimestamp }
-      = await import(cdn('firebase-firestore.js'));
-
-    const app  = initializeApp(FIREBASE_CONFIG);
-    const auth = getAuth(app);
-    const db   = getFirestore(app);
-
-    // ── Auth state ────────────────────────────────────────────────────────
-    onAuthStateChanged(auth, user => {
-      document.getElementById('auth-card').style.display = 'flex';
+    fbAuth.onAuthStateChanged(user => {
       window.fbCurrentUser = user;
-
       if (user) {
         authSignin.style.display = 'none';
         authUser.style.display   = 'flex';
         document.getElementById('auth-name').textContent = user.displayName || user.email;
-        const avatar = document.getElementById('auth-avatar');
-        if (user.photoURL) { avatar.src = user.photoURL; avatar.style.display = 'block'; }
+        const av = document.getElementById('auth-avatar');
+        if (user.photoURL) { av.src = user.photoURL; av.style.display = 'block'; }
         const pid = user.providerData[0]?.providerId || '';
         document.getElementById('auth-provider').textContent =
           pid.includes('google') ? 'via Google' : pid.includes('github') ? 'via GitHub' : '';
       } else {
-        authSignin.style.display = 'flex';
+        authSignin.style.display       = 'flex';
         authSignin.style.flexDirection = 'column';
-        authSignin.style.alignItems = 'center';
-        authUser.style.display = 'none';
+        authSignin.style.alignItems    = 'center';
+        authUser.style.display         = 'none';
       }
     });
 
-    // ── Exposed globals ───────────────────────────────────────────────────
-    window.fbSignInGoogle = () => signInWithPopup(auth, new GoogleAuthProvider()).catch(console.error);
-    window.fbSignInGithub = () => signInWithPopup(auth, new GithubAuthProvider()).catch(console.error);
-    window.fbSignOut      = () => signOut(auth);
+    window.fbSignInGoogle = () => fbAuth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(console.error);
+    window.fbSignInGithub = () => fbAuth.signInWithPopup(new firebase.auth.GithubAuthProvider()).catch(console.error);
+    window.fbSignOut      = () => fbAuth.signOut();
 
+    // ── Firestore leaderboard (with 5s timeout) ───────────────────────────
     window.fbSaveEntry = entry =>
-      addDoc(collection(db, 'leaderboard'), {
+      fbFS.collection('leaderboard').add({
         ...entry,
-        uid:         window.fbCurrentUser?.uid || null,
+        uid:         window.fbCurrentUser?.uid  || null,
         displayName: window.fbCurrentUser?.displayName || entry.winner,
-        photoURL:    window.fbCurrentUser?.photoURL || null,
-        timestamp:   serverTimestamp(),
+        timestamp:   firebase.firestore.FieldValue.serverTimestamp(),
       });
 
-    window.fbGetEntries = async () => {
-      const snap = await getDocs(
-        query(collection(db, 'leaderboard'), orderBy('timestamp', 'desc'), limit(20))
-      );
-      return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    };
+    window.fbGetEntries = () => Promise.race([
+      fbFS.collection('leaderboard').orderBy('timestamp', 'desc').limit(20).get()
+        .then(s => s.docs.map(d => ({ id: d.id, ...d.data() }))),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 5000)),
+    ]);
 
     window.fbReady = true;
+
+    // ── Realtime multiplayer helpers ──────────────────────────────────────
+    window.rtdb = fbRTDB;
   </script>
 
   <!-- ══ GAME SCRIPT ═══════════════════════════════════════════════════ -->
   <script>
-    // ── Canvas ────────────────────────────────────────────────────────────
     const canvas   = document.getElementById('c');
     const ctx      = canvas.getContext('2d');
     const overlay  = document.getElementById('overlay');
@@ -324,65 +343,45 @@
     const AI_SPEED = { easy: 2.5, medium: 4,  hard: 6.5 };
     const AI_ERROR = { easy: 40,  medium: 18, hard: 4   };
 
-    // ── 8-bit Sound ───────────────────────────────────────────────────────
-    let soundEnabled = true;
-    let audioCtx;
-
+    // ── Sound ──────────────────────────────────────────────────────────────
+    let soundEnabled = true, audioCtx;
     function getAC() {
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       if (audioCtx.state === 'suspended') audioCtx.resume();
       return audioCtx;
     }
-
     ['touchstart','mousedown','keydown'].forEach(ev =>
       document.addEventListener(ev, () => audioCtx?.resume(), { passive: true })
     );
-
-    function beep({ freq = 440, dur = 0.08, vol = 0.3, type = 'square', slide = null }) {
+    function beep({ freq=440, dur=0.08, vol=0.3, type='square', slide=null }) {
       if (!soundEnabled) return;
       try {
-        const ac   = getAC();
-        const osc  = ac.createOscillator();
-        const gain = ac.createGain();
-        osc.connect(gain);
-        gain.connect(ac.destination);
-        osc.type = type;
-        osc.frequency.setValueAtTime(freq, ac.currentTime);
-        if (slide !== null) osc.frequency.linearRampToValueAtTime(slide, ac.currentTime + dur);
+        const ac=getAC(), osc=ac.createOscillator(), gain=ac.createGain();
+        osc.connect(gain); gain.connect(ac.destination);
+        osc.type=type; osc.frequency.setValueAtTime(freq, ac.currentTime);
+        if (slide!==null) osc.frequency.linearRampToValueAtTime(slide, ac.currentTime+dur);
         gain.gain.setValueAtTime(vol, ac.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + dur);
-        osc.start(ac.currentTime);
-        osc.stop(ac.currentTime + dur + 0.01);
-      } catch (_) {}
+        gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime+dur);
+        osc.start(ac.currentTime); osc.stop(ac.currentTime+dur+0.01);
+      } catch(_) {}
     }
-
     const after = (ms, fn) => setTimeout(fn, ms);
-
     const sfx = {
-      paddleHit() { beep({ freq: 240, dur: 0.05, vol: 0.45 }); },
-      wallHit()   { beep({ freq: 480, dur: 0.03, vol: 0.3  }); },
-      score() {
-        beep({ freq: 392, dur: 0.08, vol: 0.4 });
-        after(90,  () => beep({ freq: 330, dur: 0.08, vol: 0.4 }));
-        after(180, () => beep({ freq: 262, dur: 0.16, vol: 0.5 }));
-      },
-      win() {
-        [523, 659, 784, 1047].forEach((f, i) =>
-          after(i * 130, () => beep({ freq: f, dur: 0.2, vol: 0.45 }))
-        );
-      },
-      click()  { beep({ freq: 660, dur: 0.04, vol: 0.2 }); },
-      pause()  { beep({ freq: 330, dur: 0.08, vol: 0.25, slide: 220 }); },
-      resume() { beep({ freq: 220, dur: 0.08, vol: 0.25, slide: 330 }); },
+      paddleHit() { beep({ freq:240, dur:0.05, vol:0.45 }); },
+      wallHit()   { beep({ freq:480, dur:0.03, vol:0.3  }); },
+      score()     { beep({freq:392,dur:0.08,vol:0.4}); after(90,()=>beep({freq:330,dur:0.08,vol:0.4})); after(180,()=>beep({freq:262,dur:0.16,vol:0.5})); },
+      win()       { [523,659,784,1047].forEach((f,i)=>after(i*130,()=>beep({freq:f,dur:0.2,vol:0.45}))); },
+      click()     { beep({ freq:660, dur:0.04, vol:0.2  }); },
+      pause()     { beep({ freq:330, dur:0.08, vol:0.25, slide:220 }); },
+      resume()    { beep({ freq:220, dur:0.08, vol:0.25, slide:330 }); },
     };
-
     function toggleSound() {
       soundEnabled = !soundEnabled;
       btnSound.textContent = soundEnabled ? '🔊' : '🔇';
       if (soundEnabled) sfx.click();
     }
 
-    // ── State ─────────────────────────────────────────────────────────────
+    // ── State ──────────────────────────────────────────────────────────────
     let mode = 'cpu', difficulty = 'medium';
     let running = false, animId, lastWinner = null, isTouch = false;
 
@@ -394,7 +393,20 @@
     };
     const tp = { left: null, right: null };
 
-    // ── Screens ───────────────────────────────────────────────────────────
+    // ── Online multiplayer state ───────────────────────────────────────────
+    let onlineRole   = null;   // 'host' | 'guest'
+    let onlineCode   = null;
+    let roomRef      = null;
+    let myName       = '';
+    let opponentName = '';
+    let onlineSubs   = [];     // RTDB listeners to detach on leave
+    let lastSyncAt   = 0;
+
+    function myDisplayName() {
+      return window.fbCurrentUser?.displayName || 'Player';
+    }
+
+    // ── Screens ────────────────────────────────────────────────────────────
     function showScreen(id) {
       document.querySelectorAll('.screen').forEach(s => s.classList.remove('visible'));
       document.getElementById('game').classList.remove('visible');
@@ -404,7 +416,7 @@
     function showMenu() { sfx.click(); showScreen('menu'); }
     async function showLeaderboard() { sfx.click(); showScreen('leaderboard'); await renderLeaderboard(); }
 
-    // ── Responsive scaling ────────────────────────────────────────────────
+    // ── Responsive ─────────────────────────────────────────────────────────
     function resizeGame() {
       const scale = Math.min(window.innerWidth / 816, window.innerHeight / 576, 1);
       document.getElementById('game-wrap').style.transform = `translate(-50%, -50%) scale(${scale})`;
@@ -414,43 +426,52 @@
     window.addEventListener('resize', resizeGame);
     window.addEventListener('orientationchange', () => setTimeout(resizeGame, 150));
 
-    // ── Touch ─────────────────────────────────────────────────────────────
+    // ── Touch ──────────────────────────────────────────────────────────────
     function detectTouch() {
       isTouch = window.matchMedia('(hover: none) and (pointer: coarse)').matches || ('ontouchstart' in window);
     }
-
     canvas.addEventListener('touchstart', onCanvasTouch, { passive: false });
     canvas.addEventListener('touchmove',  onCanvasTouch, { passive: false });
     canvas.addEventListener('touchend',   onCanvasTouch, { passive: false });
     canvas.addEventListener('touchcancel',onCanvasTouch, { passive: false });
-
     function onCanvasTouch(e) {
-      e.preventDefault();
-      isTouch = true;
+      e.preventDefault(); isTouch = true;
       tp.left = tp.right = null;
       const rect = canvas.getBoundingClientRect();
       for (const t of e.touches) {
         const cx = (t.clientX - rect.left) / rect.width  * W;
         const cy = (t.clientY - rect.top)  / rect.height * H;
-        if (cx < W / 2) tp.left  = cy;
-        else            tp.right = cy;
+        if (cx < W/2) tp.left = cy; else tp.right = cy;
       }
       if (e.type === 'touchstart' && !running && document.getElementById('game').classList.contains('visible')) {
+        if (onlineRole) return; // online start is automatic
         lastWinner !== null ? playAgain() : beginRunning();
       }
       updateOverlay();
     }
 
-    // ── Menu ──────────────────────────────────────────────────────────────
+    // ── Menu ───────────────────────────────────────────────────────────────
     function selectMode(m) {
       sfx.click(); mode = m;
+      ['cpu','human','online'].forEach(x =>
+        document.getElementById('btn-vs-' + (x === 'cpu' ? 'cpu' : x === 'human' ? 'human' : 'online'))
+          ?.classList.toggle('active', x === m)
+      );
       document.getElementById('btn-vs-cpu').classList.toggle('active',   m === 'cpu');
       document.getElementById('btn-vs-human').classList.toggle('active', m === 'human');
+      document.getElementById('btn-online').classList.toggle('active',   m === 'online');
+
       const cpu = m === 'cpu';
       document.getElementById('diff-label').style.opacity       = cpu ? '0.5'  : '0.15';
       document.getElementById('diff-group').style.opacity       = cpu ? '1'    : '0.25';
       document.getElementById('diff-group').style.pointerEvents = cpu ? 'auto' : 'none';
+
+      const isOnline = m === 'online';
+      document.getElementById('btn-start').style.display    = isOnline ? 'none'  : '';
+      document.getElementById('online-panel').style.display = isOnline ? 'flex'  : 'none';
+      if (isOnline) showOlChoice();
     }
+
     function selectDiff(d) {
       sfx.click(); difficulty = d;
       ['easy','medium','hard'].forEach(x =>
@@ -458,12 +479,310 @@
       );
     }
 
-    // ── Auth bridge ───────────────────────────────────────────────────────
-    function signInGoogle() { window.fbSignInGoogle?.(); }
-    function signInGithub() { window.fbSignInGithub?.(); }
-    function doSignOut()    { window.fbSignOut?.(); }
+    // ── Auth bridge ────────────────────────────────────────────────────────
+    function signInGoogle()  { window.fbSignInGoogle?.(); }
+    function signInGithub()  { window.fbSignInGithub?.(); }
+    function doSignOut()     { window.fbSignOut?.(); }
 
-    // ── Game flow ─────────────────────────────────────────────────────────
+    // ── Online lobby UI helpers ────────────────────────────────────────────
+    function showOlChoice() {
+      document.getElementById('ol-choice').style.display    = 'flex';
+      document.getElementById('ol-waiting').style.display   = 'none';
+      document.getElementById('ol-join-form').style.display = 'none';
+    }
+    function showJoinForm() {
+      sfx.click();
+      document.getElementById('ol-choice').style.display    = 'none';
+      document.getElementById('ol-join-form').style.display = 'flex';
+      document.getElementById('ol-join-form').style.flexDirection = 'column';
+      document.getElementById('ol-join-form').style.alignItems    = 'center';
+      document.getElementById('ol-code-input').value = '';
+      document.getElementById('ol-code-input').focus();
+    }
+    function showOlWaiting(code) {
+      document.getElementById('ol-choice').style.display    = 'none';
+      document.getElementById('ol-join-form').style.display = 'none';
+      document.getElementById('ol-waiting').style.display   = 'flex';
+      document.getElementById('ol-waiting').style.flexDirection = 'column';
+      document.getElementById('ol-waiting').style.alignItems    = 'center';
+      document.getElementById('ol-code-display').textContent = code;
+    }
+
+    // ── Online room management ─────────────────────────────────────────────
+    function genCode() {
+      return Math.random().toString(36).substring(2, 6).toUpperCase();
+    }
+
+    async function createRoom() {
+      sfx.click();
+      if (!window.rtdb) { alert('Firebase not connected'); return; }
+      let code, ref;
+      // find an unused code
+      do {
+        code = genCode();
+        ref  = window.rtdb.ref('rooms/' + code);
+        const snap = await ref.once('value');
+        if (!snap.exists()) break;
+      } while (true);
+
+      myName      = myDisplayName();
+      onlineCode  = code;
+      onlineRole  = 'host';
+      roomRef     = ref;
+
+      await roomRef.set({
+        status:      'waiting',
+        host:        { name: myName, paddleY: H/2 - PAD_H/2 },
+        guest:       null,
+        ball:        { x: W/2, y: H/2, vx: 4, vy: 3 },
+        score:       { host: 0, guest: 0 },
+      });
+
+      // Auto-delete room when host disconnects
+      roomRef.onDisconnect().remove();
+
+      showOlWaiting(code);
+
+      // Watch for guest joining
+      const guestSub = roomRef.child('guest/name').on('value', snap => {
+        if (snap.val()) {
+          opponentName = snap.val();
+          document.getElementById('ol-status').textContent = `${opponentName} joined!`;
+          roomRef.child('status').set('playing');
+          roomRef.child('guest/name').off('value', guestSub);
+          launchOnlineGame();
+        }
+      });
+    }
+
+    async function joinRoom() {
+      sfx.click();
+      const code = document.getElementById('ol-code-input').value.toUpperCase().trim();
+      if (code.length !== 4) { alert('Enter a 4-letter code'); return; }
+      if (!window.rtdb) { alert('Firebase not connected'); return; }
+
+      const ref  = window.rtdb.ref('rooms/' + code);
+      const snap = await ref.once('value');
+      if (!snap.exists()) { alert('Room not found'); return; }
+      const data = snap.val();
+      if (data.status !== 'waiting') { alert('Room is full or game already started'); return; }
+
+      myName       = myDisplayName();
+      opponentName = data.host?.name || 'Host';
+      onlineCode   = code;
+      onlineRole   = 'guest';
+      roomRef      = ref;
+
+      await roomRef.child('guest').set({ name: myName, paddleY: H/2 - PAD_H/2 });
+      roomRef.child('guest').onDisconnect().remove();
+
+      launchOnlineGame();
+    }
+
+    async function cancelRoom() {
+      sfx.click();
+      if (roomRef) { await roomRef.remove(); roomRef = null; }
+      onlineRole = onlineCode = null;
+      showOlChoice();
+    }
+
+    function leaveRoom() {
+      onlineSubs.forEach(({ ref, event, cb }) => ref.off(event, cb));
+      onlineSubs = [];
+      if (roomRef) {
+        if (onlineRole === 'host') roomRef.remove();
+        else roomRef.child('guest').remove();
+        roomRef = null;
+      }
+      onlineRole = onlineCode = null;
+    }
+
+    // ── Launch online game ─────────────────────────────────────────────────
+    function launchOnlineGame() {
+      showScreen('game');
+      resizeGame();
+      state.left.score = state.right.score = 0;
+      state.left.y = state.right.y = H/2 - PAD_H/2;
+      reset(1);
+      lastWinner = null;
+      tp.left = tp.right = null;
+      btnPause.style.display = 'none'; // can't pause online games
+
+      document.getElementById('online-badge').textContent = `🔴 ${onlineCode}`;
+      msg.textContent = onlineRole === 'host'
+        ? `vs ${opponentName} — You serve!`
+        : `vs ${opponentName} — Get ready!`;
+
+      info.textContent = isTouch
+        ? (onlineRole === 'host' ? 'Drag left side — your paddle' : 'Drag right side — your paddle')
+        : (onlineRole === 'host' ? 'W/S — your paddle  |  Esc — leave' : '↑/↓ — your paddle  |  Esc — leave');
+
+      setupRTDBListeners();
+
+      after(2000, () => {
+        if (!document.getElementById('game').classList.contains('visible')) return;
+        msg.textContent = '';
+        running = true;
+        if (onlineRole === 'host') hostLoop();
+        else guestLoop();
+      });
+    }
+
+    // ── RTDB sync ──────────────────────────────────────────────────────────
+    function setupRTDBListeners() {
+      function sub(ref, event, cb) {
+        ref.on(event, cb);
+        onlineSubs.push({ ref, event, cb });
+      }
+
+      if (onlineRole === 'host') {
+        // Host reads guest paddle
+        sub(roomRef.child('guest/paddleY'), 'value', snap => {
+          if (snap.val() !== null) state.right.y = snap.val();
+        });
+        // Host watches for guest leaving
+        sub(roomRef.child('guest'), 'value', snap => {
+          if (running && snap.val() === null) opponentDisconnected();
+        });
+
+      } else {
+        // Guest reads ball + host paddle + scores from host
+        sub(roomRef.child('ball'), 'value', snap => {
+          const b = snap.val();
+          if (b) Object.assign(state.ball, b);
+        });
+        sub(roomRef.child('host/paddleY'), 'value', snap => {
+          if (snap.val() !== null) state.left.y = snap.val();
+        });
+        sub(roomRef.child('score'), 'value', snap => {
+          const s = snap.val();
+          if (s) { state.left.score = s.host || 0; state.right.score = s.guest || 0; }
+        });
+        // Guest watches for win signal from host
+        sub(roomRef.child('winner'), 'value', snap => {
+          if (snap.val() && running) {
+            running = false;
+            const winner = snap.val();
+            sfx.win();
+            msg.textContent = `${winner} wins!`;
+            lastWinner = winner;
+            after(3000, goToMenu);
+          }
+        });
+        // Guest watches for host leaving
+        sub(roomRef.child('host'), 'value', snap => {
+          if (running && snap.val() === null) opponentDisconnected();
+        });
+      }
+    }
+
+    function syncHostToRTDB() {
+      const now = Date.now();
+      if (now - lastSyncAt < 33) return; // ~30fps
+      lastSyncAt = now;
+      roomRef.update({
+        'ball/x':        state.ball.x,
+        'ball/y':        state.ball.y,
+        'ball/vx':       state.ball.vx,
+        'ball/vy':       state.ball.vy,
+        'host/paddleY':  state.left.y,
+        'score/host':    state.left.score,
+        'score/guest':   state.right.score,
+      });
+    }
+
+    function syncGuestToRTDB() {
+      const now = Date.now();
+      if (now - lastSyncAt < 33) return;
+      lastSyncAt = now;
+      roomRef.child('guest/paddleY').set(state.right.y);
+    }
+
+    function opponentDisconnected() {
+      running = false;
+      cancelAnimationFrame(animId);
+      msg.textContent = 'Opponent disconnected';
+      after(2500, goToMenu);
+    }
+
+    // ── Host game loop ─────────────────────────────────────────────────────
+    function hostLoop() {
+      hostUpdate();
+      draw();
+      syncHostToRTDB();
+      if (running) animId = requestAnimationFrame(hostLoop);
+    }
+
+    function hostUpdate() {
+      const SPD = 6;
+      // Host controls left paddle
+      if (tp.left !== null) {
+        state.left.y = clamp(tp.left - PAD_H/2, 0, H - PAD_H);
+      } else {
+        if (keys['w'] || keys['W']) state.left.y = clamp(state.left.y - SPD, 0, H - PAD_H);
+        if (keys['s'] || keys['S']) state.left.y = clamp(state.left.y + SPD, 0, H - PAD_H);
+      }
+      // Right paddle comes from RTDB listener (guest)
+
+      const b = state.ball;
+      b.x += b.vx; b.y += b.vy;
+
+      if (b.y <= BALL_R)     { b.y = BALL_R;     b.vy *= -1; sfx.wallHit(); }
+      if (b.y >= H - BALL_R) { b.y = H - BALL_R; b.vy *= -1; sfx.wallHit(); }
+
+      const lp = state.left;
+      if (b.x - BALL_R <= PAD_W+20 && b.x - BALL_R >= 20 && b.y >= lp.y && b.y <= lp.y+PAD_H) {
+        b.x = PAD_W+20+BALL_R;
+        b.vx = Math.abs(b.vx) + SPEED_INC;
+        b.vy += ((b.y-(lp.y+PAD_H/2))/(PAD_H/2))*2;
+        sfx.paddleHit();
+      }
+      const rp = state.right;
+      if (b.x+BALL_R >= W-PAD_W-20 && b.x+BALL_R <= W-20 && b.y >= rp.y && b.y <= rp.y+PAD_H) {
+        b.x = W-PAD_W-20-BALL_R;
+        b.vx = -(Math.abs(b.vx) + SPEED_INC);
+        b.vy += ((b.y-(rp.y+PAD_H/2))/(PAD_H/2))*2;
+        sfx.paddleHit();
+      }
+      b.vy = clamp(b.vy, -10, 10);
+
+      if (b.x < 0) { state.right.score++; sfx.score(); checkOnlineWin(); reset(1);  }
+      if (b.x > W) { state.left.score++;  sfx.score(); checkOnlineWin(); reset(-1); }
+    }
+
+    function checkOnlineWin() {
+      if (state.left.score < 7 && state.right.score < 7) return;
+      running = false;
+      const winner = state.left.score >= 7 ? myName : opponentName;
+      roomRef.child('winner').set(winner);
+      sfx.win();
+      msg.textContent = `${winner} wins!`;
+      lastWinner = winner;
+      saveResult(winner, winner, 'Online');
+      after(3000, goToMenu);
+    }
+
+    // ── Guest game loop ────────────────────────────────────────────────────
+    function guestLoop() {
+      guestUpdate();
+      draw();
+      syncGuestToRTDB();
+      if (running) animId = requestAnimationFrame(guestLoop);
+    }
+
+    function guestUpdate() {
+      const SPD = 6;
+      // Guest controls right paddle
+      if (tp.right !== null) {
+        state.right.y = clamp(tp.right - PAD_H/2, 0, H - PAD_H);
+      } else {
+        if (keys['ArrowUp'])   state.right.y = clamp(state.right.y - SPD, 0, H - PAD_H);
+        if (keys['ArrowDown']) state.right.y = clamp(state.right.y + SPD, 0, H - PAD_H);
+      }
+      // Ball, left paddle and scores come from RTDB listeners
+    }
+
+    // ── Local game flow ────────────────────────────────────────────────────
     function startGame() {
       sfx.click();
       showScreen('game');
@@ -472,13 +791,21 @@
       lastWinner = null;
       tp.left = tp.right = null;
       reset(1);
+      btnPause.style.display = '';
+      document.getElementById('online-badge').textContent = '';
       updateInfo();
       msg.textContent = isTouch ? 'Tap to Start' : 'Press Space to Start';
       btnPause.textContent = 'Pause';
       draw();
     }
 
-    function goToMenu() { running = false; cancelAnimationFrame(animId); showMenu(); }
+    function goToMenu() {
+      running = false;
+      cancelAnimationFrame(animId);
+      if (onlineRole) leaveRoom();
+      btnPause.style.display = '';
+      showMenu();
+    }
 
     function beginRunning() {
       if (running) return;
@@ -487,7 +814,7 @@
     }
 
     function togglePause() {
-      if (lastWinner !== null) return;
+      if (lastWinner !== null || onlineRole) return;
       running = !running;
       if (running) {
         msg.textContent = ''; btnPause.textContent = 'Pause'; sfx.resume(); loop();
@@ -504,13 +831,13 @@
       running = true; sfx.resume(); loop();
     }
 
-    // ── Keyboard ──────────────────────────────────────────────────────────
+    // ── Keyboard ───────────────────────────────────────────────────────────
     const keys = {};
     document.addEventListener('keydown', e => {
       keys[e.key] = true;
       if (e.key === 'Escape') { goToMenu(); return; }
       if (!document.getElementById('game').classList.contains('visible')) return;
-      if (e.key === ' ') {
+      if (e.key === ' ' && !onlineRole) {
         e.preventDefault();
         if (lastWinner !== null) playAgain();
         else if (!running)       beginRunning();
@@ -519,179 +846,157 @@
     });
     document.addEventListener('keyup', e => { keys[e.key] = false; });
 
-    // ── Game helpers ──────────────────────────────────────────────────────
+    // ── Local game helpers ─────────────────────────────────────────────────
     const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
     function reset(dir = 1) {
       state.ball.x = W/2; state.ball.y = H/2;
       state.ball.vx = 4 * dir;
-      state.ball.vy = (Math.random() * 4 + 2) * (Math.random() < 0.5 ? 1 : -1);
+      state.ball.vy = (Math.random()*4+2) * (Math.random()<0.5?1:-1);
       state.aiTarget = H/2;
     }
 
     function updateAI() {
-      const b = state.ball, spd = AI_SPEED[difficulty], err = AI_ERROR[difficulty];
-      if (b.vx > 0) {
-        const t = (W - 20 - PAD_W - b.x) / b.vx;
-        let py = (b.y + b.vy * t) % (H * 2);
-        if (py < 0) py += H * 2;
-        if (py > H) py = H * 2 - py;
-        state.aiTarget = py + (Math.random() * 2 - 1) * err;
+      const b=state.ball, spd=AI_SPEED[difficulty], err=AI_ERROR[difficulty];
+      if (b.vx>0) {
+        const t=(W-20-PAD_W-b.x)/b.vx;
+        let py=(b.y+b.vy*t)%(H*2);
+        if (py<0) py+=H*2; if (py>H) py=H*2-py;
+        state.aiTarget = py + (Math.random()*2-1)*err;
       }
-      const center = state.right.y + PAD_H / 2;
-      if      (center < state.aiTarget - 4) state.right.y += spd;
-      else if (center > state.aiTarget + 4) state.right.y -= spd;
-      state.right.y = clamp(state.right.y, 0, H - PAD_H);
+      const center = state.right.y + PAD_H/2;
+      if      (center < state.aiTarget-4) state.right.y += spd;
+      else if (center > state.aiTarget+4) state.right.y -= spd;
+      state.right.y = clamp(state.right.y, 0, H-PAD_H);
     }
 
     function update() {
       const SPD = 6;
-      if (tp.left !== null) {
-        state.left.y = clamp(tp.left - PAD_H/2, 0, H - PAD_H);
-      } else {
-        if (keys['w'] || keys['W']) state.left.y = clamp(state.left.y - SPD, 0, H - PAD_H);
-        if (keys['s'] || keys['S']) state.left.y = clamp(state.left.y + SPD, 0, H - PAD_H);
+      if (tp.left!==null) { state.left.y = clamp(tp.left-PAD_H/2, 0, H-PAD_H); }
+      else {
+        if (keys['w']||keys['W']) state.left.y = clamp(state.left.y-SPD, 0, H-PAD_H);
+        if (keys['s']||keys['S']) state.left.y = clamp(state.left.y+SPD, 0, H-PAD_H);
       }
-
-      if (mode === 'human') {
-        if (tp.right !== null) {
-          state.right.y = clamp(tp.right - PAD_H/2, 0, H - PAD_H);
-        } else {
-          if (keys['ArrowUp'])   state.right.y = clamp(state.right.y - SPD, 0, H - PAD_H);
-          if (keys['ArrowDown']) state.right.y = clamp(state.right.y + SPD, 0, H - PAD_H);
+      if (mode==='human') {
+        if (tp.right!==null) { state.right.y = clamp(tp.right-PAD_H/2, 0, H-PAD_H); }
+        else {
+          if (keys['ArrowUp'])   state.right.y = clamp(state.right.y-SPD, 0, H-PAD_H);
+          if (keys['ArrowDown']) state.right.y = clamp(state.right.y+SPD, 0, H-PAD_H);
         }
       } else { updateAI(); }
 
-      const b = state.ball;
-      b.x += b.vx; b.y += b.vy;
+      const b=state.ball;
+      b.x+=b.vx; b.y+=b.vy;
+      if (b.y<=BALL_R)     { b.y=BALL_R;     b.vy*=-1; sfx.wallHit(); }
+      if (b.y>=H-BALL_R)   { b.y=H-BALL_R;   b.vy*=-1; sfx.wallHit(); }
 
-      if (b.y <= BALL_R)     { b.y = BALL_R;     b.vy *= -1; sfx.wallHit(); }
-      if (b.y >= H - BALL_R) { b.y = H - BALL_R; b.vy *= -1; sfx.wallHit(); }
-
-      const lp = state.left;
-      if (b.x - BALL_R <= PAD_W + 20 && b.x - BALL_R >= 20 &&
-          b.y >= lp.y && b.y <= lp.y + PAD_H) {
-        b.x = PAD_W + 20 + BALL_R;
-        b.vx = Math.abs(b.vx) + SPEED_INC;
-        b.vy += ((b.y - (lp.y + PAD_H/2)) / (PAD_H/2)) * 2;
-        sfx.paddleHit();
+      const lp=state.left;
+      if (b.x-BALL_R<=PAD_W+20&&b.x-BALL_R>=20&&b.y>=lp.y&&b.y<=lp.y+PAD_H) {
+        b.x=PAD_W+20+BALL_R; b.vx=Math.abs(b.vx)+SPEED_INC;
+        b.vy+=((b.y-(lp.y+PAD_H/2))/(PAD_H/2))*2; sfx.paddleHit();
       }
-
-      const rp = state.right;
-      if (b.x + BALL_R >= W - PAD_W - 20 && b.x + BALL_R <= W - 20 &&
-          b.y >= rp.y && b.y <= rp.y + PAD_H) {
-        b.x = W - PAD_W - 20 - BALL_R;
-        b.vx = -(Math.abs(b.vx) + SPEED_INC);
-        b.vy += ((b.y - (rp.y + PAD_H/2)) / (PAD_H/2)) * 2;
-        sfx.paddleHit();
+      const rp=state.right;
+      if (b.x+BALL_R>=W-PAD_W-20&&b.x+BALL_R<=W-20&&b.y>=rp.y&&b.y<=rp.y+PAD_H) {
+        b.x=W-PAD_W-20-BALL_R; b.vx=-(Math.abs(b.vx)+SPEED_INC);
+        b.vy+=((b.y-(rp.y+PAD_H/2))/(PAD_H/2))*2; sfx.paddleHit();
       }
+      b.vy=clamp(b.vy,-10,10);
 
-      b.vy = clamp(b.vy, -10, 10);
-
-      if (b.x < 0) { state.right.score++; sfx.score(); checkWin(mode === 'cpu' ? 'Computer' : 'P2'); reset(1);  }
-      if (b.x > W) { state.left.score++;  sfx.score(); checkWin('P1'); reset(-1); }
+      if (b.x<0) { state.right.score++; sfx.score(); checkWin(mode==='cpu'?'Computer':'P2'); reset(1);  }
+      if (b.x>W) { state.left.score++;  sfx.score(); checkWin('P1'); reset(-1); }
     }
 
     function checkWin(winner) {
-      if (state.left.score < 7 && state.right.score < 7) return;
-      running = false; lastWinner = winner; sfx.win();
+      if (state.left.score<7 && state.right.score<7) return;
+      running=false; lastWinner=winner; sfx.win();
       const name = window.fbCurrentUser?.displayName || winner;
       msg.textContent = isTouch ? `${name} wins! — Tap to play again` : `${name} wins! — Space to play again`;
-      saveResult(winner, name);
+      saveResult(winner, name, mode==='cpu'?`vs CPU (${difficulty})`:'Local 2P');
     }
 
-    // ── Draw ──────────────────────────────────────────────────────────────
+    // ── Draw ───────────────────────────────────────────────────────────────
     function draw() {
-      ctx.clearRect(0, 0, W, H);
-      ctx.setLineDash([10, 10]);
-      ctx.strokeStyle = 'rgba(255,255,255,0.25)';
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(W/2, 0); ctx.lineTo(W/2, H); ctx.stroke();
-      ctx.setLineDash([]);
+      ctx.clearRect(0,0,W,H);
+      ctx.setLineDash([10,10]); ctx.strokeStyle='rgba(255,255,255,0.25)'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(W/2,0); ctx.lineTo(W/2,H); ctx.stroke(); ctx.setLineDash([]);
 
-      ctx.fillStyle = '#fff';
+      ctx.fillStyle='#fff';
       ctx.fillRect(20, state.left.y, PAD_W, PAD_H);
-      ctx.fillRect(W - 20 - PAD_W, state.right.y, PAD_W, PAD_H);
-      ctx.beginPath();
-      ctx.arc(state.ball.x, state.ball.y, BALL_R, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.fillRect(W-20-PAD_W, state.right.y, PAD_W, PAD_H);
+      ctx.beginPath(); ctx.arc(state.ball.x, state.ball.y, BALL_R, 0, Math.PI*2); ctx.fill();
 
-      ctx.font = 'bold 48px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillStyle = 'rgba(255,255,255,0.8)';
+      ctx.font='bold 48px monospace'; ctx.textAlign='center'; ctx.fillStyle='rgba(255,255,255,0.8)';
       ctx.fillText(state.left.score,  W/4,   60);
       ctx.fillText(state.right.score, W*3/4, 60);
 
-      ctx.font = '12px monospace';
-      ctx.fillStyle = 'rgba(255,255,255,0.28)';
-      ctx.fillText('P1',                       W/4,   80);
-      ctx.fillText(mode === 'cpu' ? 'CPU':'P2', W*3/4, 80);
-    }
-
-    function updateOverlay() {
-      octx.clearRect(0, 0, W, H);
-      if (!isTouch) return;
-      if (tp.left  !== null) { octx.fillStyle = 'rgba(255,255,255,0.05)'; octx.fillRect(0,   0, W/2, H); }
-      if (tp.right !== null) { octx.fillStyle = 'rgba(255,255,255,0.05)'; octx.fillRect(W/2, 0, W/2, H); }
-      if (!running && !tp.left && !tp.right) {
-        octx.font = '13px monospace';
-        octx.fillStyle = 'rgba(255,255,255,0.18)';
-        octx.textAlign = 'center';
-        octx.fillText('touch', W/4, H/2);
-        if (mode === 'human') octx.fillText('touch', W*3/4, H/2);
+      ctx.font='12px monospace'; ctx.fillStyle='rgba(255,255,255,0.28)';
+      if (onlineRole) {
+        const leftLabel  = onlineRole==='host' ? 'You' : opponentName;
+        const rightLabel = onlineRole==='host' ? opponentName : 'You';
+        ctx.fillText(leftLabel,  W/4,   80);
+        ctx.fillText(rightLabel, W*3/4, 80);
+      } else {
+        ctx.fillText('P1',                       W/4,   80);
+        ctx.fillText(mode==='cpu'?'CPU':'P2',    W*3/4, 80);
       }
     }
 
-    function updateInfo() {
-      info.textContent = isTouch
-        ? (mode === 'human' ? 'Drag left — P1  |  Drag right — P2' : 'Drag left side to move your paddle')
-        : (mode === 'human' ? 'W/S — P1  |  ↑/↓ — P2  |  Space — Pause  |  Esc — Menu'
-                            : 'W/S — paddle  |  Space — Pause  |  Esc — Menu');
+    function updateOverlay() {
+      octx.clearRect(0,0,W,H);
+      if (!isTouch) return;
+      if (tp.left  !== null) { octx.fillStyle='rgba(255,255,255,0.05)'; octx.fillRect(0,   0,W/2,H); }
+      if (tp.right !== null) { octx.fillStyle='rgba(255,255,255,0.05)'; octx.fillRect(W/2, 0,W/2,H); }
     }
 
-    function loop() { update(); draw(); if (running) animId = requestAnimationFrame(loop); }
+    function updateInfo() {
+      if (onlineRole) return;
+      info.textContent = isTouch
+        ? (mode==='human' ? 'Drag left — P1  |  Drag right — P2' : 'Drag left to move your paddle')
+        : (mode==='human' ? 'W/S — P1  |  ↑/↓ — P2  |  Space — Pause  |  Esc — Menu'
+                          : 'W/S — paddle  |  Space — Pause  |  Esc — Menu');
+    }
 
-    // ── Leaderboard ───────────────────────────────────────────────────────
+    function loop() { update(); draw(); if (running) animId=requestAnimationFrame(loop); }
+
+    // ── Leaderboard ────────────────────────────────────────────────────────
     const LB_KEY = 'pong_leaderboard';
-    const loadLB = () => { try { return JSON.parse(localStorage.getItem(LB_KEY)) || []; } catch { return []; } };
+    const loadLB = () => { try { return JSON.parse(localStorage.getItem(LB_KEY))||[]; } catch { return []; } };
     const saveLB = d  => localStorage.setItem(LB_KEY, JSON.stringify(d));
 
-    async function saveResult(winner, displayName) {
+    async function saveResult(winner, displayName, modeLabel) {
       const entry = {
         winner: displayName || winner,
-        mode:   mode === 'cpu' ? `vs CPU (${difficulty})` : '2 Players',
+        mode:   modeLabel || (mode==='cpu' ? `vs CPU (${difficulty})` : '2 Players'),
         score:  `${state.left.score}–${state.right.score}`,
         date:   new Date().toLocaleDateString(),
       };
-      const lb = loadLB(); lb.unshift(entry); saveLB(lb.slice(0, 20));
+      const lb=loadLB(); lb.unshift(entry); saveLB(lb.slice(0,20));
       if (window.fbReady && window.fbSaveEntry) {
-        try { await window.fbSaveEntry(entry); } catch (e) { console.warn('Firestore:', e); }
+        try { await window.fbSaveEntry(entry); } catch(e) { console.warn('Firestore:', e); }
       }
     }
 
     async function renderLeaderboard() {
-      const body  = document.getElementById('lb-body');
-      const empty = document.getElementById('lb-empty');
-      const src   = document.getElementById('lb-source');
-      body.innerHTML = `<tr><td colspan="5" style="opacity:0.3;text-align:center;padding:16px">Loading…</td></tr>`;
+      const body=document.getElementById('lb-body');
+      const empty=document.getElementById('lb-empty');
+      const src=document.getElementById('lb-source');
+      body.innerHTML=`<tr><td colspan="5" style="opacity:0.3;text-align:center;padding:16px">Loading…</td></tr>`;
 
-      let lb, online = false;
+      let lb, online=false;
       if (window.fbReady && window.fbGetEntries) {
-        try { lb = await window.fbGetEntries(); online = true; }
-        catch { lb = loadLB(); }
-      } else { lb = loadLB(); }
+        try { lb=await window.fbGetEntries(); online=true; }
+        catch { lb=loadLB(); }
+      } else { lb=loadLB(); }
 
       src.textContent = online ? '🌐 Online leaderboard' : '💾 Local scores only';
-      body.innerHTML = '';
+      body.innerHTML='';
       empty.style.display = lb.length ? 'none' : 'block';
-
-      lb.forEach((e, i) => {
-        const tr = document.createElement('tr');
-        if (i === 0) tr.classList.add('gold');
-        if (i === 1) tr.classList.add('silver');
-        if (i === 2) tr.classList.add('bronze');
-        const name = e.winner || e.displayName || '—';
-        tr.innerHTML = `<td>${i+1}</td><td>${name}</td><td>${e.mode}</td><td>${e.score}</td><td>${e.date}</td>`;
+      lb.forEach((e,i) => {
+        const tr=document.createElement('tr');
+        if (i===0) tr.classList.add('gold');
+        if (i===1) tr.classList.add('silver');
+        if (i===2) tr.classList.add('bronze');
+        tr.innerHTML=`<td>${i+1}</td><td>${e.winner||e.displayName||'—'}</td><td>${e.mode}</td><td>${e.score}</td><td>${e.date}</td>`;
         body.appendChild(tr);
       });
     }
@@ -701,7 +1006,7 @@
       saveLB([]); renderLeaderboard();
     }
 
-    // ── Init ──────────────────────────────────────────────────────────────
+    // ── Init ───────────────────────────────────────────────────────────────
     detectTouch();
     selectMode('cpu');
     selectDiff('medium');
