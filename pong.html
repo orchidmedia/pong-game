@@ -207,9 +207,10 @@
         <div id="name-row">
           <input id="guest-name-input" type="text" maxlength="20" placeholder="Enter your name"
             autocomplete="off" spellcheck="false"
-            oninput="saveGuestName(this.value)"
-            onkeydown="if(event.key==='Enter')this.blur()">
-          </div>
+            onkeydown="if(event.key==='Enter'){saveGuestName(this.value);showNameSaved();}">
+          <button id="btn-save-name" onclick="saveGuestName(document.getElementById('guest-name-input').value);showNameSaved();">Save</button>
+        </div>
+        <div id="name-saved" style="font-size:11px;opacity:0;color:#fff;transition:opacity 0.3s;">✓ Saved</div>
         <div class="label" style="margin-top:4px">Sign in to save scores online</div>
         <div class="auth-provider-btns">
           <button onclick="signInGoogle()">
@@ -434,6 +435,12 @@
       const trimmed = val.trim();
       if (trimmed) localStorage.setItem('pong_guest_name', trimmed);
       else localStorage.removeItem('pong_guest_name');
+    }
+
+    function showNameSaved() {
+      const el = document.getElementById('name-saved');
+      el.style.opacity = '1';
+      setTimeout(() => { el.style.opacity = '0'; }, 1500);
     }
 
     // ── Screens ────────────────────────────────────────────────────────────
@@ -1092,7 +1099,7 @@
         ctx.fillText(leftLabel,  W/4,   80);
         ctx.fillText(rightLabel, W*3/4, 80);
       } else {
-        ctx.fillText('P1',                       W/4,   80);
+        ctx.fillText(myDisplayName(),            W/4,   80);
         ctx.fillText(mode==='cpu'?'CPU':'P2',    W*3/4, 80);
       }
     }
@@ -1124,7 +1131,7 @@
         winner: displayName || winner,
         mode:   modeLabel || (mode==='cpu' ? `vs CPU (${difficulty})` : '2 Players'),
         score:  `${state.left.score}–${state.right.score}`,
-        date:   new Date().toLocaleDateString(),
+        date:   new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }),
       };
       const lb=loadLB(); lb.unshift(entry); saveLB(lb.slice(0,20));
       if (window.fbReady && window.fbSaveEntry) {
